@@ -1,0 +1,8 @@
+*.o
+*.d
+*.lst
+*.elf
+__pycache__/
+*.pyc
+.DS_Store
+lgt8f-unlocked-*.zip

@@ -1,0 +1,22 @@
+LGT8F328P Unlocked 0.9.0-source-rc2-safe-hdr-hwtest
+Date: 2026-08-31
+
+PASS test_digital_and_analog_pin_guards
+PASS test_docs_and_version
+PASS test_eeprom_controller_state
+PASS test_eeprom_mapping_and_native_words
+PASS test_protected_writes_and_system_guards
+PASS test_qfp48_tables_and_analog_map
+PASS test_timer2_and_spi_dual_hardening
+PASS test_udsc_opcode_builders
+PASS test_wire_guards
+
+9/9 static regression groups passed
+recovery-safe static interlocks PASS
+core/legacy recovery interlocks PASS
+EEPROM partition lock PASS
+PASS RC2 hardening regression: 27 bug classes/interlocks
+PASS host C++ syntax/runtime: aggregate + register runtime + 14 examples
+PASS legacy syntax/runtime: Wire.cpp + EEPROM.cpp + twi.c + Wire + EEPROM safe-partition runtime
+PASS AVR-Clang codegen: aggregate + 14 examples; uDSC IN/OUT emitted
+PASS actual core AVR codegen: D13 fast path + legacy wiring/Wire/TWI/EEPROM + RAM profiles + QFP48 table assertions
