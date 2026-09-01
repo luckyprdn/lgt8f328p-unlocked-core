@@ -71,7 +71,12 @@ void attachInterrupt(uint8_t interruptNum, void (*userFunc)(void), int mode) {
   // into neighbouring configuration bits; a null callback would crash in ISR.
   if (userFunc == 0 || mode < 0 || mode > 3) return;
   if(interruptNum < EXTERNAL_NUM_INTERRUPTS) {
+    // Rust-paradigm: the ISR reads intFunc[] concurrently.  Wrap the pointer
+    // write in a critical section so the ISR always sees a valid callback.
+    uint8_t sreg = SREG;
+    cli();
     intFunc[interruptNum] = userFunc;
+    SREG = sreg;
     
     // Configure the interrupt mode (trigger on low input, any change, rising
     // edge, or falling edge).  The mode constants were chosen to correspond

@@ -40,6 +40,28 @@
 #include "pins_arduino.h"
 #include "twi.h"
 
+// ===========================================================================
+// Rust-paradigm: explicit state machine with ownership semantics.
+// twi_masterBuffer is owned by the master transaction path (main context).
+// twi_rxBuffer / twi_txBuffer are owned by the ISR (slave context).
+// Handoff is guarded by the state machine: the main loop waits for the
+// state to leave MRX/MTX before reading/writing masterBuffer; the ISR
+// owns rxBuffer/txBuffer during SRX/STX and releases them via callbacks.
+// ===========================================================================
+typedef enum {
+  TWI_SM_READY = 0,   // idle — no buffer owned by either side
+  TWI_SM_MRX   = 1,   // master receive — ISR writes masterBuffer, main reads after
+  TWI_SM_MTX   = 2,   // master transmit — main writes masterBuffer before, ISR sends
+  TWI_SM_SRX   = 3,   // slave receive — ISR owns rxBuffer, callback consumes it
+  TWI_SM_STX   = 4    // slave transmit — ISR owns txBuffer, callback fills it
+} TWI_SM_State;
+
+// Validate that a state value is within the legal range.  In the event of
+// an unexpected hardware state, reset to READY so the bus can recover.
+static inline bool twi_state_valid(volatile uint8_t s) {
+  return s <= (uint8_t)TWI_SM_STX;
+}
+
 static volatile uint8_t twi_state;
 static volatile uint8_t twi_slarw;
 static volatile uint8_t twi_sendStop;			// should the transaction end with a stop
@@ -83,8 +105,6 @@ void twi_init(void)
   twi_state = TWI_READY;
   twi_sendStop = true;		// default value
   twi_inRepStart = false;
-  
-  // activate internal pullups for twi.
   digitalWrite(SDA, 1);
   digitalWrite(SCL, 1);
 
@@ -199,6 +219,10 @@ uint8_t twi_readFrom(uint8_t address, uint8_t* data, uint8_t length, uint8_t sen
     return 0;
   }
 
+  // Rust-paradigm: recover from an invalid state before starting a
+  // transaction.  Never proceed while twi_state is a corrupt value.
+  if (!twi_state_valid(twi_state)) twi_state = TWI_READY;
+
   // wait until twi is ready, become master receiver
   uint32_t startMicros = micros();
   while(TWI_READY != twi_state){
@@ -296,6 +320,9 @@ uint8_t twi_writeTo(uint8_t address, uint8_t* data, uint8_t length, uint8_t wait
     return 1;
   }
 
+  // Rust-paradigm: recover from invalid state before starting a transaction.
+  if (!twi_state_valid(twi_state)) twi_state = TWI_READY;
+
   // wait until twi is ready, become master transmitter
   uint32_t startMicros = micros();
   while(TWI_READY != twi_state){
@@ -381,6 +408,10 @@ uint8_t twi_transmit(const uint8_t* data, uint8_t length)
   uint8_t i;
 
   if ((length != 0) && (data == 0)) return 1;
+
+  // Rust-paradigm: validate state BEFORE the capacity check so a corrupt
+  // state cannot be used to interpret buffer ownership wrongly.
+  if (!twi_state_valid(twi_state)) twi_state = TWI_READY;
 
   // ensure data will fit into buffer
   if(TWI_BUFFER_LENGTH < (twi_txBufferLength+length)){
@@ -668,8 +699,13 @@ ISR(TWI_vect)
       if(twi_rxBufferIndex < TWI_BUFFER_LENGTH){
         twi_rxBuffer[twi_rxBufferIndex] = '\0';
       }
-      // callback to user defined callback
-      twi_onSlaveReceive(twi_rxBuffer, twi_rxBufferIndex);
+      // Rust-paradigm: the rxBuffer ownership transfers to the user callback
+      // ONLY through twi_onSlaveReceive.  A null callback (never attached or
+      // after a failed begin) must not be dereferenced inside an ISR.
+      if (twi_onSlaveReceive != 0) {
+        // callback to user defined callback
+        twi_onSlaveReceive(twi_rxBuffer, twi_rxBufferIndex);
+      }
       // since we submit rx buffer to "wire" library, we can reset it
       twi_rxBufferIndex = 0;
       break;
@@ -688,9 +724,14 @@ ISR(TWI_vect)
       twi_txBufferIndex = 0;
       // set tx buffer length to be zero, to verify if user changes it
       twi_txBufferLength = 0;
-      // request for txBuffer to be filled and length to be set
-      // note: user must call twi_transmit(bytes, length) to do this
-      twi_onSlaveTransmit();
+      // Rust-paradigm: the txBuffer ownership transfers to the user callback
+      // ONLY through twi_onSlaveTransmit.  A null callback must not be
+      // dereferenced inside an ISR (e.g. slave addressed but no begin()).
+      if (twi_onSlaveTransmit != 0) {
+        // request for txBuffer to be filled and length to be set
+        // note: user must call twi_transmit(bytes, length) to do this
+        twi_onSlaveTransmit();
+      }
       // if they didn't change buffer & length, initialize it
       if(0 == twi_txBufferLength){
         twi_txBufferLength = 1;
