@@ -49,6 +49,60 @@ static inline uint16_t load16(const uint16_t *p){if(!validSram16(p))return 0;ena
 static inline Status store16(uint16_t *p,uint16_t v){if(!validSram16(p))return OutOfRange;enable();mappingIO(false);setX(v);void *z=(void*)alias16Address(p);__asm__ __volatile__("st Z,r0"::"z"(z):"r0","memory");return Ok;}
 static inline DivResult divmod(uint32_t d,uint16_t v){enable();setAccumulator(d);setY(v);command(OP_DIVMOD);waitDivision();DivResult r={accumulator(),getY(),divideByZero()};return r;}
 static inline int32_t dotProduct(const int16_t *a,const int16_t *b,uint16_t c){if(c==0)return 0;if(!a||!b)return 0;enable();command(OP_CLEAR);for(uint16_t i=0;i<c;++i){setX((uint16_t)a[i]);setY((uint16_t)b[i]);command(macOpcode(true,true,false,false,true));}return (int32_t)accumulator();}
+
+// DSP16 — 16-bit signed int whose arithmetic TRANSPARENTLY uses uDSC.
+// Write z = a * b + c and the uDSC does the math.  Mixed int constants
+// work: z = x * 2 / 3 + 7.
+struct DSP16 {
+  int16_t v;
+  DSP16(int x = 0) : v((int16_t)x) {}
+  operator int16_t() const { return v; }
+  operator int32_t() const { return (int32_t)v; }
+
+  friend DSP16 operator+(DSP16 a, DSP16 b) {
+    enable(); setX((uint16_t)a.v); setY((uint16_t)b.v); command(OP_ADD_S);
+    return DSP16((int16_t)saturated());
+  }
+  friend DSP16 operator-(DSP16 a, DSP16 b) {
+    enable(); setX((uint16_t)a.v); setY((uint16_t)b.v); command(OP_SUB_S);
+    return DSP16((int16_t)saturated());
+  }
+  friend DSP16 operator*(DSP16 a, DSP16 b) {
+    enable(); setX((uint16_t)a.v); setY((uint16_t)b.v); command(mulOpcode(true, true));
+    return DSP16((int16_t)saturated());
+  }
+  friend DSP16 operator/(DSP16 a, DSP16 b) {
+    if (b.v == 0) return DSP16(0);
+    bool neg = (a.v < 0) != (b.v < 0);
+    uint32_t ua = (uint32_t)(a.v < 0 ? (int32_t)-(int32_t)a.v : (int32_t)a.v);
+    uint16_t ub = (uint16_t)(b.v < 0 ? (int32_t)-(int32_t)b.v : (int32_t)b.v);
+    DivResult r = divmod(ua, ub);
+    return DSP16(neg ? -(int16_t)r.quotient : (int16_t)r.quotient);
+  }
+  friend DSP16 operator%(DSP16 a, DSP16 b) {
+    if (b.v == 0) return DSP16(0);
+    bool neg = a.v < 0;
+    uint32_t ua = (uint32_t)(a.v < 0 ? (int32_t)-(int32_t)a.v : (int32_t)a.v);
+    uint16_t ub = (uint16_t)(b.v < 0 ? (int32_t)-(int32_t)b.v : (int32_t)b.v);
+    DivResult r = divmod(ua, ub);
+    return DSP16(neg ? -(int16_t)r.remainder : (int16_t)r.remainder);
+  }
+  DSP16 &operator+=(DSP16 o) { *this = *this + o; return *this; }
+  DSP16 &operator-=(DSP16 o) { *this = *this - o; return *this; }
+  DSP16 &operator*=(DSP16 o) { *this = *this * o; return *this; }
+  DSP16 &operator/=(DSP16 o) { *this = *this / o; return *this; }
+  DSP16 &operator%=(DSP16 o) { *this = *this % o; return *this; }
+  DSP16 &mac(DSP16 a, DSP16 b) {
+    enable(); setX((uint16_t)a.v); setY((uint16_t)b.v); command(macOpcode(true, true, false, false, true));
+    v = (int16_t)saturated(); return *this;
+  }
+};
+// Mixed-operand overloads so DSP16 * 2 and 2 * DSP16 both compile.
+inline DSP16 operator+(DSP16 a, int b) { return a + DSP16(b); } inline DSP16 operator+(int a, DSP16 b) { return DSP16(a) + b; }
+inline DSP16 operator-(DSP16 a, int b) { return a - DSP16(b); } inline DSP16 operator-(int a, DSP16 b) { return DSP16(a) - b; }
+inline DSP16 operator*(DSP16 a, int b) { return a * DSP16(b); } inline DSP16 operator*(int a, DSP16 b) { return DSP16(a) * b; }
+inline DSP16 operator/(DSP16 a, int b) { return a / DSP16(b); } inline DSP16 operator/(int a, DSP16 b) { return DSP16(a) / b; }
+inline DSP16 operator%(DSP16 a, int b) { return a % DSP16(b); } inline DSP16 operator%(int a, DSP16 b) { return DSP16(a) % b; }
 }
 #else
 namespace dsp {
@@ -79,6 +133,30 @@ static inline bool validSram16(const void *p){(void)p;return false;}static inlin
 static inline uint16_t load16(const uint16_t *p){(void)p;return 0;}static inline Status store16(uint16_t *p,uint16_t v){(void)p;(void)v;return Unsupported;}
 static inline DivResult divmod(uint32_t d,uint16_t v){(void)d;(void)v;DivResult r={0,0,true};return r;}
 static inline int32_t dotProduct(const int16_t *a,const int16_t *b,uint16_t c){(void)a;(void)b;(void)c;return 0;}
+
+// DSP16 — portable fallback on 328D/E (native AVR arithmetic).
+struct DSP16 {
+  int16_t v;
+  DSP16(int x = 0) : v((int16_t)x) {}
+  operator int16_t() const { return v; }
+  operator int32_t() const { return (int32_t)v; }
+  friend DSP16 operator+(DSP16 a, DSP16 b) { return DSP16((int16_t)((int32_t)a.v + (int32_t)b.v)); }
+  friend DSP16 operator-(DSP16 a, DSP16 b) { return DSP16((int16_t)((int32_t)a.v - (int32_t)b.v)); }
+  friend DSP16 operator*(DSP16 a, DSP16 b) { return DSP16((int16_t)((int32_t)a.v * (int32_t)b.v)); }
+  friend DSP16 operator/(DSP16 a, DSP16 b) { if (b.v == 0) return DSP16(0); return DSP16((int16_t)((int32_t)a.v / (int32_t)b.v)); }
+  friend DSP16 operator%(DSP16 a, DSP16 b) { if (b.v == 0) return DSP16(0); return DSP16((int16_t)((int32_t)a.v % (int32_t)b.v)); }
+  DSP16 &operator+=(DSP16 o) { *this = *this + o; return *this; }
+  DSP16 &operator-=(DSP16 o) { *this = *this - o; return *this; }
+  DSP16 &operator*=(DSP16 o) { *this = *this * o; return *this; }
+  DSP16 &operator/=(DSP16 o) { *this = *this / o; return *this; }
+  DSP16 &operator%=(DSP16 o) { *this = *this % o; return *this; }
+  DSP16 &mac(DSP16 a, DSP16 b) { v = (int16_t)((int32_t)v + (int32_t)a.v * (int32_t)b.v); return *this; }
+};
+inline DSP16 operator+(DSP16 a, int b) { return a + DSP16(b); } inline DSP16 operator+(int a, DSP16 b) { return DSP16(a) + b; }
+inline DSP16 operator-(DSP16 a, int b) { return a - DSP16(b); } inline DSP16 operator-(int a, DSP16 b) { return DSP16(a) - b; }
+inline DSP16 operator*(DSP16 a, int b) { return a * DSP16(b); } inline DSP16 operator*(int a, DSP16 b) { return DSP16(a) * b; }
+inline DSP16 operator/(DSP16 a, int b) { return a / DSP16(b); } inline DSP16 operator/(int a, DSP16 b) { return DSP16(a) / b; }
+inline DSP16 operator%(DSP16 a, int b) { return a % DSP16(b); } inline DSP16 operator%(int a, DSP16 b) { return DSP16(a) % b; }
 }
 #endif
 
