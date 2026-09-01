@@ -2,7 +2,13 @@
 *.d
 *.lst
 *.elf
-__pycache__/
+*.a
+*.exe
+*.out
 *.pyc
+__pycache__/
 .DS_Store
+*.bak
+*~
+*.stackdump
 lgt8f-unlocked-*.zip
