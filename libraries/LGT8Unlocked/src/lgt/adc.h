@@ -20,27 +20,33 @@ enum ADCPGANegative : uint8_t { PGANegAPN0=0, PGANegAPN1=1, PGANegAPN2=2, PGANeg
 
 struct ADCAdvanced {
   static inline int readFast(uint8_t pin){return analogReadFast(pin);}
+
+  // ---- LGT8F328P-only features ----
+#if LGT8_UNLOCKED_HAS_ADC_CAL
   static inline void highSpeed(bool yes=true){yes?ADCSRC|=_BV(SPD):ADCSRC&=(uint8_t)~_BV(SPD);}
   static inline void fixedOffsetCompensation(bool yes=true){yes?ADCSRC|=_BV(OFEN):ADCSRC&=(uint8_t)~_BV(OFEN);}
   static inline void offsetRegisters(int8_t positive,int8_t negative){OFR0=(uint8_t)positive;OFR1=(uint8_t)negative;}
+#else
+  static inline void highSpeed(bool yes=true){(void)yes;}
+  static inline void fixedOffsetCompensation(bool yes=true){(void)yes;}
+  static inline void offsetRegisters(int8_t positive,int8_t negative){(void)positive;(void)negative;}
+#endif
 
   static inline Status channel(uint8_t rawChannel){if(rawChannel>31u)return InvalidArgument;ADMUX=(uint8_t)((ADMUX&0xE0u)|(rawChannel&0x1Fu));return Ok;}
   static inline Status channelFromPin(uint8_t pin){
     uint8_t ch=pin;
     if(pin>=14u){ch=(uint8_t)(pin-14u);}
     if(ch>15u)return InvalidArgument;
-    // CHMUX 8 is the internal 1/5 VDO channel. QFP48 Arduino A8 begins at
-    // digital pin 23 and therefore naturally maps to channel 9.
+#if LGT8_UNLOCKED_SILICON_D
+    // 328D/E: 8 ADC channels on PC0-5 + PE1/PE3 (CHMUX 0..7)
+    if(ch>7u)return InvalidArgument;
+#endif
     return channel(ch);
   }
 
   static inline void trigger(ADCTrigger source, ADCComparatorTrigger comparator=TriggerComparator0){
     ADCSRB=(uint8_t)((ADCSRB&~0x0Fu)|((uint8_t)source&0x07u));
     if(comparator==TriggerComparator1)ADCSRB|=_BV(ACTS);else ADCSRB&=(uint8_t)~_BV(ACTS);
-    // ADTS=0 is the continuous/free-running selection.  As on AVR-style ADCs,
-    // ADATE remains enabled so ADSC can start the first conversion and the
-    // converter can continue autonomously.  Nonzero ADTS values use the
-    // selected event edge as the trigger source.
     detail::adcUpdate(_BV(ADATE),0);
   }
   static inline void disableTrigger(){detail::adcUpdate(0,_BV(ADATE));}
@@ -48,6 +54,7 @@ struct ADCAdvanced {
   static inline bool busy(){return (ADCSRA&_BV(ADSC))!=0;}
   static inline uint16_t result(){return ADC;}
 
+#if LGT8_UNLOCKED_HAS_ADC_MONITOR
   static inline Status monitor(uint16_t low,uint16_t high,uint8_t consecutive=1){
     if(low>0x0FFFu||high>0x0FFFu||low>high||consecutive==0u||consecutive>15u)return InvalidArgument;
     ADT0=low;ADT1=high;ADMSC=(uint8_t)(consecutive&0x0Fu);clearInterruptFlag();ADCSRC|=_BV(AMEN);return Ok;
@@ -55,19 +62,30 @@ struct ADCAdvanced {
   static inline void stopMonitor(){ADCSRC&=(uint8_t)~_BV(AMEN);}
   static inline bool monitorOverflow(){return (ADMSC&_BV(AMOF))!=0;}
   static inline bool monitorTriggered(){return (ADCSRA&_BV(ADIF))!=0;}
+#else
+  static inline Status monitor(uint16_t low,uint16_t high,uint8_t consecutive=1){(void)low;(void)high;(void)consecutive;return Unsupported;}
+  static inline void stopMonitor(){}
+  static inline bool monitorOverflow(){return false;}
+  static inline bool monitorTriggered(){return false;}
+#endif
   static inline void clearInterruptFlag(){detail::adcClearFlag();}
   static inline void interrupt(bool yes=true){yes?detail::adcUpdate(_BV(ADIE),0):detail::adcUpdate(0,_BV(ADIE));}
 
+#if LGT8_UNLOCKED_HAS_PGA
   static inline void differentialEnable(bool yes=true){yes?ADCSRC|=_BV(DIFS):ADCSRC&=(uint8_t)~_BV(DIFS);}
   static inline Status configurePGA(ADCPGAPositive positive,ADCPGANegative negative,ADCPGAGain gain,bool enable=true){
     if((uint8_t)positive>3u||(uint8_t)negative>7u||(uint8_t)gain>3u)return InvalidArgument;
     DAPCR=(uint8_t)((enable?_BV(DAPEN):0u)|(((uint8_t)gain)<<5)|(((uint8_t)negative)<<2)|((uint8_t)positive));return Ok;
   }
   static inline void pgaRaw(uint8_t dapcr){DAPCR=dapcr;}
+#else
+  // 328D/E: no PGA block; differential amplification is done through OPA0.
+  static inline void differentialEnable(bool yes=true){(void)yes;}
+  static inline Status configurePGA(ADCPGAPositive positive,ADCPGANegative negative,ADCPGAGain gain,bool enable=true){(void)positive;(void)negative;(void)gain;(void)enable;return Unsupported;}
+  static inline void pgaRaw(uint8_t dapcr){(void)dapcr;}
+#endif
 
-  // Performs the fixed-offset calibration sequence documented by LogicGreen.
-  // It temporarily uses AVCC as both VDS input and ADC reference, averages the
-  // requested number of conversions, writes signed OFR0/OFR1 and enables OFEN.
+#if LGT8_UNLOCKED_HAS_ADC_CAL
   static inline Status calibrateOffset(uint8_t samples=8){
     if(samples==0u||samples>64u)return InvalidArgument;
     if((PRR&_BV(0)) || (ADCSRA&(_BV(ADSC)|_BV(ADIF))) || (ADCSRC&_BV(AMEN)))return NotReady;
@@ -99,6 +117,9 @@ struct ADCAdvanced {
     ADCSRA=(uint8_t)(saveA&~_BV(ADIF));
     return Ok;
   }
+#else
+  static inline Status calibrateOffset(uint8_t samples=8){(void)samples;return Unsupported;}
+#endif
 
 private:
   static inline uint16_t convertRaw(){detail::adcClearFlag();detail::adcUpdate(_BV(ADSC),0);while(ADCSRA&_BV(ADSC)){}return ADC;}

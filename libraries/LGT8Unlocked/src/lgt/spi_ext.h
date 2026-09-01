@@ -2,15 +2,15 @@
 #define LGT8_UNLOCKED_SPI_EXT_H
 #include "common.h"
 #include <SPI.h>
+
 namespace lgt {
+
 struct SPIDualResult{uint8_t first;uint8_t second;};
 struct SPIDual {
+#if LGT8_UNLOCKED_HAS_SPI_DUAL
   static inline Status begin(){
     if(!(SPCR&_BV(MSTR)) || !(SPCR&_BV(SPE)))return Unsupported;
-    // Dual mode is master receive-only: both serial data pins are inputs.
     DDRB&=(uint8_t)~(_BV(DDB3)|_BV(DDB4));
-    // Start from an empty FIFO once.  Do not reset SPFR after each transfer:
-    // doing so would discard any data queued by a pipelined caller.
     SPFR=(uint8_t)(_BV(RDEMPT)|_BV(WREMPT));
     SPSR|=_BV(DUAL);
     return Ok;
@@ -21,9 +21,6 @@ struct SPIDual {
   }
   static inline Status receive2(SPIDualResult &r){
     if(!(SPCR&_BV(MSTR)) || !(SPCR&_BV(SPE)) || !(SPSR&_BV(DUAL)))return NotReady;
-    // The LGT dual-input engine receives two complete bytes for one SPDR
-    // write (two data bits per SPCK).  The databook explicitly requires two
-    // successive SPDR reads after SPIF is asserted.
     SPDR=0;
     while(!(SPSR&_BV(SPIF))){}
     r.first=SPDR;
@@ -46,6 +43,15 @@ struct SPIDual {
     }
     return Ok;
   }
+#else
+  // LGT8F328D/E has no dual-SPI (SPFR) hardware.
+  static inline Status begin(){return Unsupported;}
+  static inline void end(bool restore=true){(void)restore;}
+  static inline Status receive2(SPIDualResult &r){(void)r;return Unsupported;}
+  static inline SPIDualResult receive2(){SPIDualResult r={0,0};return r;}
+  static inline Status receive(void *buffer,size_t bytes){(void)buffer;(void)bytes;return Unsupported;}
+#endif
 };
+
 }
 #endif

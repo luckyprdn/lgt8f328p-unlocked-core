@@ -4,6 +4,7 @@
 
 namespace lgt {
 
+#if LGT8_UNLOCKED_HAS_HDR
 enum HighDrivePin : uint8_t {
   HighDrive_PD5 = 0,
   HighDrive_PD6 = 1,
@@ -12,7 +13,6 @@ enum HighDrivePin : uint8_t {
   HighDrive_PF4 = 4,
   HighDrive_PF5 = 5
 };
-
 struct DriveStrength {
   static inline Status high(HighDrivePin pin) {
     const uint8_t p=(uint8_t)pin;
@@ -46,6 +46,18 @@ struct DriveStrength {
     return (HDR & _BV(p)) != 0;
   }
 };
+#else
+// LGT8F328D/E has no high-drive register.  The enum is kept for API compatibility.
+enum HighDrivePin : uint8_t {
+  HighDrive_PD5 = 0, HighDrive_PD6 = 1, HighDrive_PF1 = 2,
+  HighDrive_PF2 = 3, HighDrive_PF4 = 4, HighDrive_PF5 = 5
+};
+struct DriveStrength {
+  static inline Status high(HighDrivePin) { return Unsupported; }
+  static inline Status normal(HighDrivePin) { return Unsupported; }
+  static inline bool isHigh(HighDrivePin) { return false; }
+};
+#endif
 
 struct PinChange {
   static inline Status enable(uint8_t pin) {

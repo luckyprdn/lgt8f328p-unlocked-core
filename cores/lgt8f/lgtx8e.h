@@ -24,6 +24,10 @@ Description     : volatile char * converted to Arduino style _SFR_IO and _SFR_ME
 #define GUID0   _SFR_MEM8(0xF3)
 
 #define PMXCR   _SFR_MEM8(0xEE)
+#define OC0C0   3
+#define SSB1    2
+#define TDD6    1
+#define RDD5    0
 #define PSSR    _SFR_MEM8(0xE2)
 #define PSS1    7
 #define PSR1    0
@@ -145,12 +149,19 @@ extern uint8_t _VCAL_1_;
 #define CLKOE   5
 #define CLKOE1  6
 #define CLKOE0  5
+#define WCE     7       // alias for CLKPCE, write-enable for CLKPR
+#define CLKPCE  WCE     // standard AVR name
 
 #define VDTCR   _SFR_MEM8(0x62)
 #define VDTCE   7
 #define SWRSTN  6
-#define VSEL    1
+#define SWR     SWRSTN
+#define VDTS1   3
+#define VDTS0   2
+#define LVREN   1
 #define VDTEN   0
+#define VDREN   LVREN   // alias: 328P-style name, same bit on 328D/E
+#define VSEL    LVREN   // legacy alias kept for source compatibility
 
 #define RCKCAL  _SFR_MEM8(0x67)
 #define RCCAL   _SFR_MEM8(0x66)
@@ -179,9 +190,12 @@ extern uint8_t _VCAL_1_;
 #define OPAEN   7
 
 #define ECCR    _SFR_IO8(0x36)
-#define EC      0
+#define EC0     0
+#define EC1     1
 #define EEN     6
 #define EWEN    7
+// Backward-compatible alias: older code uses "EC" for the low partition bit
+#define EC      EC0
 
 #define DAL0    _SFR_IO8(0x32)
 #define AFTCNT0 _SFR_IO8(0x31)
@@ -192,7 +206,43 @@ extern uint8_t _VCAL_1_;
 // TCCR0B
 #define DTEN0   4
 #define DSX0    _SFR_IO8(0x29)
+// Timer0 fault/trigger register aliases: 328D names this register DSX0;
+// 328P-style TCCR0C maps to the same address.
+#define TCCR0C  DSX0
 #define DTR0    _SFR_IO8(0x2F)
+
+// DTR1 — 16-bit dead-time register (low/high split for LSB/MSB access)
+#define DTR1    _SFR_MEM16(0x8C)
+#define DTR1L   _SFR_MEM8(0x8C)
+#define DTR1H   _SFR_MEM8(0x8D)
+
+// ASSR bits (LGT extension: INTCK for internal 32KHz async clock)
+#define INTCK   7
+
+// ADCSRB bits
+#define ACTS    3
+#define ACME01  7
+#define ACME00  6
+#define ACME11  5
+#define ACME10  4
+
+// Comparator AC0SR/AC1SR bits (matching C0SR/C1SR names used by the library)
+#define C0D     7
+#define C0BG    6
+#define C0O     5
+#define C0I     4
+#define C0IE    3
+#define C0IC    2
+#define C0IS1   1
+#define C0IS0   0
+#define C1D     7
+#define C1BG    6
+#define C1O     5
+#define C1I     4
+#define C1IE    3
+#define C1IC    2
+#define C1IS1   1
+#define C1IS0   0
 
 #define OP1TCNT _SFR_IO8(0x14)
 #define OP1CRB  _SFR_IO8(0x13)
@@ -201,6 +251,15 @@ extern uint8_t _VCAL_1_;
 #define AFTCNT1 _SFR_IO8(0x10)
 
 #define AC1SR   _SFR_IO8(0x0F)
+// Comparator aliases: 328D names AC0SR/AC1SR; 328P-style C0SR/C1SR map to
+// the same addresses (0x50 / 0x2F).
+#define AC0SR   _SFR_IO8(0x30)
+#define C0SR    AC0SR
+#define C1SR    AC1SR
+
+// Timer1 fault/trigger register aliases: 328D names this register DSX1;
+// 328P-style TCCR1D maps to the same address.
+#define TCCR1D  DSX1
 
 #define _VECTOR(N) __vector_ ## N
 #undef SPM_Ready_vect

@@ -52,6 +52,24 @@ struct Timer1Advanced {
 
 struct Timer3 {
   enum Channel : uint8_t { A=0, B=1, C=2 };
+#if !LGT8_UNLOCKED_HAS_TIMER3
+  // LGT8F328D/E has no Timer3.  Methods are stubs that return Unsupported.
+  static inline void stop() {}
+  static inline void clock(uint8_t csBits){(void)csBits;}
+  static inline void mode(uint8_t wgm){(void)wgm;}
+  static inline void fastPwmICR(uint16_t top, uint8_t csBits=1){(void)top;(void)csBits;}
+  static inline Status duty(Channel ch, uint16_t value){(void)ch;(void)value;return Unsupported;}
+  static inline Status output(Channel ch, bool enable=true, bool inverted=false){(void)ch;(void)enable;(void)inverted;return Unsupported;}
+  static inline void deadTime(uint8_t a, uint8_t b){(void)a;(void)b;}
+  static inline void disableDeadTime(){}
+  static inline void faultSources(uint8_t mask){(void)mask;}
+  static inline Status protect(Channel ch,bool yes=true){(void)ch;(void)yes;return Unsupported;}
+  static inline void captureEdge(bool rising,bool noiseCancel=false){(void)rising;(void)noiseCancel;}
+  static inline uint16_t captured(){return 0;}
+  static inline void captureInterrupt(bool yes=true){(void)yes;}
+  static inline void independentPrescaler(bool yes=true){(void)yes;}
+  static inline void resetPrescaler(){}
+#else
   static inline void stop() { TCCR3B&=(uint8_t)~(_BV(CS32)|_BV(CS31)|_BV(CS30)); }
   static inline void clock(uint8_t csBits) { TCCR3B=(uint8_t)((TCCR3B&~0x07u)|(csBits&0x07u)); }
   static inline void mode(uint8_t wgm) {
@@ -74,6 +92,7 @@ struct Timer3 {
   static inline void captureInterrupt(bool yes=true){yes?TIMSK3|=_BV(ICIE3):TIMSK3&=(uint8_t)~_BV(ICIE3);}
   static inline void independentPrescaler(bool yes=true){yes?PSSR|=_BV(PSS3):PSSR&=(uint8_t)~_BV(PSS3);}
   static inline void resetPrescaler(){PSSR|=_BV(PSR3);}
+#endif
 };
 
 struct Timer2Async {

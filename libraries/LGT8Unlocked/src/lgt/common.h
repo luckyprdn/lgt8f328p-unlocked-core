@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include "safety.h"
+#include "features.h"
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
@@ -18,6 +19,7 @@ enum Status : uint8_t {
 };
 
 namespace detail {
+#if LGT8_UNLOCKED_HAS_PMX012
 static inline void pmx0Write(uint8_t value) {
   uint8_t s = SREG; cli();
   PMX0 = (uint8_t)(PMX0 | 0x80u);
@@ -36,6 +38,22 @@ static inline void pmx2Write(uint8_t value) {
   PMX2 = (uint8_t)(value & 0x67u);
   SREG = s;
 }
+#else
+// LGT8F328D/E: pin ownership & function routes live in IOCR and PMXCR,
+// which are written through the IOCE/CE enable bit (bit 7).
+static inline void iocrWrite(uint8_t value) {
+  uint8_t s = SREG; cli();
+  IOCR = (uint8_t)(IOCR | 0x80u);           // CE/IOCE write enable
+  IOCR = (uint8_t)(value & 0x7Fu);
+  SREG = s;
+}
+static inline void pmxcrWrite(uint8_t value) {
+  uint8_t s = SREG; cli();
+  PMXCR = (uint8_t)(PMXCR | 0x80u);         // WCE-style bit 7
+  PMXCR = (uint8_t)(value & 0x7Fu);
+  SREG = s;
+}
+#endif
 static inline void pmcrWrite(uint8_t value) {
   uint8_t s = SREG; cli();
   PMCR = (uint8_t)(PMCR | 0x80u);

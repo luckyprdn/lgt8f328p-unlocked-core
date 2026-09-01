@@ -18,32 +18,78 @@ static inline void c1Write(uint8_t v){ C1SR=(uint8_t)(v & (uint8_t)~_BV(C1I)); }
 
 struct Comparator0 {
   static inline void enable(bool yes=true){uint8_t v=C0SR;yes?v&=(uint8_t)~_BV(C0D):v|=_BV(C0D);detail::c0Write(v);}
+#if LGT8_UNLOCKED_HAS_OPA
+  // 328D/E: only ACBG for reference selection; no C0XR PS routing.
+  static inline void positive(AC0Positive src){
+    if((uint8_t)src>3u)return;
+    uint8_t v=C0SR;
+    if(src==AC0DAC||src==AC0PositiveOff) v|=_BV(C0BG); else v&=(uint8_t)~_BV(C0BG);
+    detail::c0Write(v);
+  }
+#else
   static inline void positive(AC0Positive src){if((uint8_t)src>3u)return;uint8_t v=C0SR;if((uint8_t)src&2u)v|=_BV(C0BG);else v&=(uint8_t)~_BV(C0BG);detail::c0Write(v);if((uint8_t)src&1u)C0XR|=_BV(C0PS0);else C0XR&=(uint8_t)~_BV(C0PS0);}
+#endif
   static inline void negative(AC0Negative src){if((uint8_t)src>3u)return;ADCSRB=(uint8_t)((ADCSRB&~(_BV(ACME01)|_BV(ACME00)))|(((uint8_t)src&3u)<<6));}
   static inline bool output(){return (C0SR&_BV(C0O))!=0;}
   static inline void edge(ComparatorEdge e){if((uint8_t)e>3u || (uint8_t)e==1u)return;detail::c0Write((uint8_t)((C0SR&~3u)|((uint8_t)e&3u)));}
   static inline void interrupt(bool yes=true){uint8_t v=C0SR;yes?v|=_BV(C0IE):v&=(uint8_t)~_BV(C0IE);detail::c0Write(v);}
   static inline void clearFlag(){C0SR=(uint8_t)((C0SR&~_BV(C0I))|_BV(C0I));}
   static inline void routeToTimer1Capture(bool yes=true){uint8_t v=C0SR;yes?v|=_BV(C0IC):v&=(uint8_t)~_BV(C0IC);detail::c0Write(v);}
+#if LGT8_UNLOCKED_HAS_OPA
+  // 328D/E: output/hysteresis/wake live on OPA0; filter width via AFTCNT0.
+  static inline void outputPin(bool yes=true){(void)yes;}
+  static inline void hysteresis(bool yes=true){(void)yes;}
+  static inline void wake(bool yes=true){(void)yes;}
+  static inline void filter(ComparatorFilter f){
+    if((uint8_t)f>3u)return;
+    bool on=(f!=FilterOff);
+    uint8_t v=OP0CRA; if(on)v|=_BV(ACFEN); else v&=(uint8_t)~_BV(ACFEN); OP0CRA=v;
+    // Filter width: AFTCNT0 sets the comparator-0 filter timing.
+    if(on) AFTCNT0=(uint8_t)f; else AFTCNT0=0;
+  }
+#else
   static inline void outputPin(bool yes=true){yes?C0XR|=_BV(C0OE):C0XR&=(uint8_t)~_BV(C0OE);}
   static inline void hysteresis(bool yes=true){yes?C0XR|=_BV(C0HSYE):C0XR&=(uint8_t)~_BV(C0HSYE);}
   static inline void wake(bool yes=true){yes?C0XR|=_BV(C0WKE):C0XR&=(uint8_t)~_BV(C0WKE);}
   static inline void filter(ComparatorFilter f){if((uint8_t)f>3u)return;C0XR=(uint8_t)((C0XR&~7u)|((f==FilterOff)?0u:(_BV(C0FEN)|((uint8_t)f&3u))));}
+#endif
 };
 
 struct Comparator1 {
   static inline void enable(bool yes=true){uint8_t v=C1SR;yes?v&=(uint8_t)~_BV(C1D):v|=_BV(C1D);detail::c1Write(v);}
+#if LGT8_UNLOCKED_HAS_OPA
+  // 328D/E: only ACBG for reference selection; no C1XR PS routing.
+  static inline void positive(AC1Positive src){
+    if((uint8_t)src>3u)return;
+    uint8_t v=C1SR;
+    if(src==AC1DAC||src==AC1PositiveOff) v|=_BV(C1BG); else v&=(uint8_t)~_BV(C1BG);
+    detail::c1Write(v);
+  }
+#else
   static inline void positive(AC1Positive src){if((uint8_t)src>3u)return;uint8_t v=C1SR;if((uint8_t)src&2u)v|=_BV(C1BG);else v&=(uint8_t)~_BV(C1BG);detail::c1Write(v);if((uint8_t)src&1u)C1XR|=_BV(C1PS0);else C1XR&=(uint8_t)~_BV(C1PS0);}
+#endif
   static inline void negative(AC1Negative src){if((uint8_t)src>3u)return;ADCSRB=(uint8_t)((ADCSRB&~(_BV(ACME11)|_BV(ACME10)))|(((uint8_t)src&3u)<<4));}
   static inline bool output(){return (C1SR&_BV(C1O))!=0;}
   static inline void edge(ComparatorEdge e){if((uint8_t)e>3u || (uint8_t)e==1u)return;detail::c1Write((uint8_t)((C1SR&~3u)|((uint8_t)e&3u)));}
   static inline void interrupt(bool yes=true){uint8_t v=C1SR;yes?v|=_BV(C1IE):v&=(uint8_t)~_BV(C1IE);detail::c1Write(v);}
   static inline void clearFlag(){C1SR=(uint8_t)((C1SR&~_BV(C1I))|_BV(C1I));}
   static inline void routeToTimerCapture(bool yes=true){uint8_t v=C1SR;yes?v|=_BV(C1IC):v&=(uint8_t)~_BV(C1IC);detail::c1Write(v);}
+#if LGT8_UNLOCKED_HAS_OPA
+  static inline void outputPin(bool yes=true){(void)yes;}
+  static inline void hysteresis(bool yes=true){(void)yes;}
+  static inline void wake(bool yes=true){(void)yes;}
+  static inline void filter(ComparatorFilter f){
+    if((uint8_t)f>3u)return;
+    bool on=(f!=FilterOff);
+    uint8_t v=OP1CRA; if(on)v|=_BV(ACFEN); else v&=(uint8_t)~_BV(ACFEN); OP1CRA=v;
+    if(on) AFTCNT1=(uint8_t)f; else AFTCNT1=0;
+  }
+#else
   static inline void outputPin(bool yes=true){yes?C1XR|=_BV(C1OE):C1XR&=(uint8_t)~_BV(C1OE);}
   static inline void hysteresis(bool yes=true){yes?C1XR|=_BV(C1HSYE):C1XR&=(uint8_t)~_BV(C1HSYE);}
   static inline void wake(bool yes=true){yes?C1XR|=_BV(C1WKE):C1XR&=(uint8_t)~_BV(C1WKE);}
   static inline void filter(ComparatorFilter f){if((uint8_t)f>3u)return;C1XR=(uint8_t)((C1XR&~7u)|((f==FilterOff)?0u:(_BV(C1FEN)|((uint8_t)f&3u))));}
+#endif
 };
 
 }
