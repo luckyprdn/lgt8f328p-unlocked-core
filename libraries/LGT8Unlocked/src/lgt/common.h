@@ -78,6 +78,14 @@ static inline void clkprWrite(uint8_t value) {
   CLKPR = (uint8_t)(value & (uint8_t)~_BV(WCE));
   SREG = s;
 }
+// RC32M doubler (rcm2x) startup: after F2XEN=1 the datasheet requires
+// waiting until the doubled clock output is stable before TC2XS* selects it.
+// A bounded delay loop (~32 cycles at 32MHz) covers the RC doubler PLL
+// lock-in; loop is volatile so the compiler cannot elide it.
+static inline void dscWaitStable() {
+  volatile uint8_t w = 16;
+  while (w--) { nop(); }
+}
 }
 }
 #endif

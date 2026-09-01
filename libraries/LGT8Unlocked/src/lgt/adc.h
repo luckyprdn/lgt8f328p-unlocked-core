@@ -121,6 +121,33 @@ struct ADCAdvanced {
   static inline Status calibrateOffset(uint8_t samples=8){(void)samples;return Unsupported;}
 #endif
 
+// ---- LGT8F328D/E differential front-end (OPA0 -> ADC_CH9) ----
+// The D/E datasheet text mentions "ADC inputs 0..5 differential, gain via
+// ADTMR GAIN", but the detailed ADTMR register map has only bit 0 (ADTM
+// test mode) — there is no GAIN field.  The real differential path on this
+// silicon is the OPA0 front-end: its output feeds ADC channel 9 (ADC_CH9).
+// This helper enables OPA0 in differential mode (CH0=non-inverting input,
+// CH1=inverting, i.e. Vout = Vch0 - Vch1) and routes ADC to channel 9.
+#if LGT8_UNLOCKED_HAS_OPA
+  static inline Status differentialViaOPA(bool invertCh1=true){
+    // Enable the op-amp block and select both input channels.
+    OP0CRA=(uint8_t)((OP0CRA & (uint8_t)~(_BV(CH0IM)|_BV(CH1IM))) | _BV(OPAEN)|_BV(CH0EN)|_BV(CH1EN));
+    if(invertCh1)OP0CRA|=_BV(CH1IM);            // Vout = Vch0 - Vch1
+    // Route ADC to OPA0 output channel (ADC_CH9).
+    ADMUX=(uint8_t)((ADMUX&0xE0u)|9u);
+    return Ok;
+  }
+  static inline Status differentialViaOPA1(bool invertCh1=true){
+    OP1CRA=(uint8_t)((OP1CRA & (uint8_t)~(_BV(CH0IM)|_BV(CH1IM))) | _BV(OPAEN)|_BV(CH0EN)|_BV(CH1EN));
+    if(invertCh1)OP1CRA|=_BV(CH1IM);
+    ADMUX=(uint8_t)((ADMUX&0xE0u)|9u);
+    return Ok;
+  }
+#else
+  static inline Status differentialViaOPA(bool invertCh1=true){(void)invertCh1;return Unsupported;}
+  static inline Status differentialViaOPA1(bool invertCh1=true){(void)invertCh1;return Unsupported;}
+#endif
+
 private:
   static inline uint16_t convertRaw(){detail::adcClearFlag();detail::adcUpdate(_BV(ADSC),0);while(ADCSRA&_BV(ADSC)){}return ADC;}
   static inline int32_t sampleAverage(uint8_t n){uint32_t s=0;for(uint8_t i=0;i<n;++i)s+=convertRaw();return (int32_t)(s/n);}

@@ -25,7 +25,7 @@ struct Timer0Advanced {
   static inline void protectA(bool yes=true) { yes?TCCR0A|=_BV(2):TCCR0A&=(uint8_t)~_BV(2); }
   static inline void protectB(bool yes=true) { yes?TCCR0A|=_BV(3):TCCR0A&=(uint8_t)~_BV(3); }
   static inline void highSpeed(bool yes=true) {
-    if (yes) { TCKCSR|=_BV(F2XEN); nop(); TCKCSR|=_BV(TC2XS0); }
+    if (yes) { TCKCSR|=_BV(F2XEN); detail::dscWaitStable(); TCKCSR|=_BV(TC2XS0); }
     else { TCKCSR&=(uint8_t)~_BV(TC2XS0); nop(); if(!(TCKCSR&_BV(TC2XS1)))TCKCSR&=(uint8_t)~_BV(F2XEN); }
   }
 };
@@ -45,7 +45,7 @@ struct Timer1Advanced {
   static inline void independentPrescaler(bool yes=true) { yes?PSSR|=_BV(PSS1):PSSR&=(uint8_t)~_BV(PSS1); }
   static inline void resetPrescaler() { PSSR|=_BV(PSR1); }
   static inline void highSpeed(bool yes=true) {
-    if (yes) { TCKCSR|=_BV(F2XEN); nop(); TCKCSR|=_BV(TC2XS1); }
+    if (yes) { TCKCSR|=_BV(F2XEN); detail::dscWaitStable(); TCKCSR|=_BV(TC2XS1); }
     else { TCKCSR&=(uint8_t)~_BV(TC2XS1); nop(); if(!(TCKCSR&_BV(TC2XS0)))TCKCSR&=(uint8_t)~_BV(F2XEN); }
   }
 };

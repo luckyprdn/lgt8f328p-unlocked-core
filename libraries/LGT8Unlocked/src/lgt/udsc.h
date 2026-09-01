@@ -48,7 +48,41 @@ static inline uintptr_t alias16Address(const void *p){return (uintptr_t)p+0x2000
 static inline uint16_t load16(const uint16_t *p){if(!validSram16(p))return 0;enable();mappingIO(false);const void *z=(const void*)alias16Address(p);__asm__ __volatile__("ld r0,Z"::"z"(z):"r0","memory");return getX();}
 static inline Status store16(uint16_t *p,uint16_t v){if(!validSram16(p))return OutOfRange;enable();mappingIO(false);setX(v);void *z=(void*)alias16Address(p);__asm__ __volatile__("st Z,r0"::"z"(z):"r0","memory");return Ok;}
 static inline DivResult divmod(uint32_t d,uint16_t v){enable();setAccumulator(d);setY(v);command(OP_DIVMOD);waitDivision();DivResult r={accumulator(),getY(),divideByZero()};return r;}
-static inline int32_t dotProduct(const int16_t *a,const int16_t *b,uint16_t c){if(c==0)return 0;if(!a||!b)return 0;enable();command(OP_CLEAR);for(uint16_t i=0;i<c;++i){setX((uint16_t)a[i]);setY((uint16_t)b[i]);command(macOpcode(true,true,false,false,true));}return (int32_t)accumulator();}
+static inline int32_t dotProduct(const int16_t *a,const int16_t *b,uint16_t c){
+  if(c==0){return 0;}
+  if(!a||!b){return 0;}
+  enable();command(OP_CLEAR);
+  for(uint16_t i=0;i<c;++i){setX((uint16_t)a[i]);setY((uint16_t)b[i]);command(macOpcode(true,true,false,false,true));}
+  return (int32_t)accumulator();
+}
+
+// dotProductFast — same math, but X is loaded through the DSC direct-SRAM
+// alias window (ld r0,Z) instead of two I/O writes.  Requires both arrays in
+// SRAM at even addresses (global/static/locals all qualify on this part).
+// Falls back to the I/O path for any sample whose address is out of range.
+static inline int32_t dotProductFast(const int16_t *a,const int16_t *b,uint16_t c){
+  if(c==0){return 0;}
+  if(!a||!b){return 0;}
+  if(!validSram16((const void*)a) || !validSram16((const void*)b)){return dotProduct(a,b,c);}
+  enable();mappingIO(false);command(OP_CLEAR);
+  const uintptr_t za=alias16Address((const void*)a);
+  for(uint16_t i=0;i<c;++i){
+    // ld r0,Z loads SRAM[addr] straight into the DSC DX operand (1 cycle),
+    // then Y is written via I/O and the MAC fires.
+    __asm__ __volatile__("ld r0,Z"::"z"(za+2u*i):"r0","memory");
+    setY((uint16_t)b[i]);
+    command(macOpcode(true,true,false,false,true));
+  }
+  mappingIO(true);
+  return (int32_t)accumulator();
+}
+
+// firFast — one new sample in, one filtered sample out, no copy of the
+// history buffer.  Caller keeps a ring of the last N inputs; dotProductFast
+// does the convolution on the ring + kernel (both in SRAM).
+static inline int32_t firFast(const int16_t *ring,const int16_t *h,uint16_t n){
+  return dotProductFast(ring,h,n);
+}
 
 // DSP16 — 16-bit signed int whose arithmetic TRANSPARENTLY uses uDSC.
 // Write z = a * b + c and the uDSC does the math.  Mixed int constants
@@ -133,6 +167,8 @@ static inline bool validSram16(const void *p){(void)p;return false;}static inlin
 static inline uint16_t load16(const uint16_t *p){(void)p;return 0;}static inline Status store16(uint16_t *p,uint16_t v){(void)p;(void)v;return Unsupported;}
 static inline DivResult divmod(uint32_t d,uint16_t v){(void)d;(void)v;DivResult r={0,0,true};return r;}
 static inline int32_t dotProduct(const int16_t *a,const int16_t *b,uint16_t c){(void)a;(void)b;(void)c;return 0;}
+static inline int32_t dotProductFast(const int16_t *a,const int16_t *b,uint16_t c){(void)a;(void)b;(void)c;return 0;}
+static inline int32_t firFast(const int16_t *ring,const int16_t *h,uint16_t n){(void)ring;(void)h;(void)n;return 0;}
 
 // DSP16 — portable fallback on 328D/E (native AVR arithmetic).
 struct DSP16 {

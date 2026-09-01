@@ -54,6 +54,13 @@ struct AdcObj {
   inline lgt::Status calibrate(uint8_t samples = 8) const {
     return lgt::ADCAdvanced::calibrateOffset(samples);
   }
+  // D only: OPA0/OPA1 front-end ke ADC_CH9 (differential). P -> Unsupported.
+  inline lgt::Status differentialViaOPA(bool invertCh1 = true) const {
+    return lgt::ADCAdvanced::differentialViaOPA(invertCh1);
+  }
+  inline lgt::Status differentialViaOPA1(bool invertCh1 = true) const {
+    return lgt::ADCAdvanced::differentialViaOPA1(invertCh1);
+  }
 };
 constexpr AdcObj AdcExt{};
 
@@ -73,8 +80,17 @@ struct DspObj {
   inline int32_t dot(const int16_t *a, const int16_t *b, uint16_t n) const {
     return lgt::dsp::dotProduct(a, b, n);
   }
+  // Same dot product but X loaded via the DSC direct-SRAM window (P only;
+  // D returns 0).  Requires SRAM arrays.
+  inline int32_t dotFast(const int16_t *a, const int16_t *b, uint16_t n) const {
+    return lgt::dsp::dotProductFast(a, b, n);
+  }
   inline int16_t fir(const int16_t *x, const int16_t *h, uint16_t n) const {
     return (int16_t)lgt::dsp::dotProduct(x, h, n);
+  }
+  // FIR via the fast SRAM path (P only; D returns 0).
+  inline int16_t firFast(const int16_t *x, const int16_t *h, uint16_t n) const {
+    return (int16_t)lgt::dsp::firFast(x, h, n);
   }
   // Rata-rata array 16-bit via MAC.
   inline int16_t average(const int16_t *a, uint16_t n) const {
