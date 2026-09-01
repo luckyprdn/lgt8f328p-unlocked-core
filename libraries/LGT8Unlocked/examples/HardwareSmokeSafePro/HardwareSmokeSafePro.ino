@@ -139,10 +139,10 @@ void setup() {
   delay(150);
   Serial.println(F("LGT8F328P Unlocked Pro recovery-safe smoke test"));
 
-  pinMode(13, OUTPUT);
-  digitalWrite(13, HIGH);
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, HIGH);
   delay(50);
-  digitalWrite(13, LOW);
+  digitalWrite(LED_BUILTIN, LOW);
 
   lgt::DeviceId id = lgt::System::guid();
   Serial.print(F("GUID="));
@@ -196,6 +196,6 @@ void setup() {
 void loop() {
   static uint8_t level = LOW;
   level = (level == LOW) ? HIGH : LOW;
-  digitalWrite(13, level);
+  digitalWrite(LED_BUILTIN, level);
   delay(500);
 }
