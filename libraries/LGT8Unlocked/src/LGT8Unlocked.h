@@ -19,6 +19,7 @@
 #include "lgt/spi_ext.h"
 #include "lgt/usart.h"
 #include "lgt/system.h"
+#include "lgt/arduino_ext.h"
 #if LGT8_UNLOCKED_HAS_OPA
 #include "lgt/opa.h"
 #endif
