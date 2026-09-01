@@ -232,48 +232,46 @@ public:
     union { uint16_t val; struct { uint8_t lsb; uint8_t msb; }; } in, out;
     in.val = data;
     if (!(SPCR & _BV(DORD))) {
+      // MSB first — LGT8F328P: pipeline 2 bytes via FIFO (kurangi inter-byte gap)
       SPDR = in.msb;
-      asm volatile("nop"); // See transfer(uint8_t) function
 #if defined(__LGT8FX8P__)
-      while ((SPFR & _BV(RDEMPT))) ;
+      while (SPFR & _BV(WRFULL));          // tunggu slot TX FIFO
+      SPDR = in.lsb;
+      while (SPFR & _BV(RDEMPT));          // RX byte 1
       out.msb = SPDR;
-      SPFR = _BV(RDEMPT) | _BV(WREMPT);
+      while (SPFR & _BV(RDEMPT));          // RX byte 2
+      out.lsb = SPDR;
+      SPFR = _BV(RDEMPT) | _BV(WREMPT);    // reset pointers
 #else
-	while(!(SPSR & _BV(SPIF)));
-	out.msb = SPDR;
-#endif
+      asm volatile("nop"); // See transfer(uint8_t) function
+      while(!(SPSR & _BV(SPIF)));
+      out.msb = SPDR;
 
       SPDR = in.lsb;
       asm volatile("nop");
-#if defined(__LGT8FX8P__)
-      while ((SPFR & _BV(RDEMPT))) ;
+      while(!(SPSR & _BV(SPIF)));
       out.lsb = SPDR;
-      SPFR = _BV(RDEMPT) | _BV(WREMPT);
-#else
-	while(!(SPSR & _BV(SPIF)));
-	out.lsb = SPDR;
 #endif
     } else {
+      // LSB first — LGT8F328P: pipeline 2 bytes via FIFO
       SPDR = in.lsb;
-      asm volatile("nop");
 #if defined(__LGT8FX8P__)
-      while ((SPFR & _BV(RDEMPT))) ;
-      out.lsb = SPDR;
-      SPFR = _BV(RDEMPT) | _BV(WREMPT);
-#else
-	while(!(SPSR & _BV(SPIF)));
-	out.lsb = SPDR;
-#endif
-
+      while (SPFR & _BV(WRFULL));
       SPDR = in.msb;
-      asm volatile("nop");
-#if defined(__LGT8FX8P__)
-      while ((SPFR & _BV(RDEMPT))) ;
+      while (SPFR & _BV(RDEMPT));
+      out.lsb = SPDR;
+      while (SPFR & _BV(RDEMPT));
       out.msb = SPDR;
       SPFR = _BV(RDEMPT) | _BV(WREMPT);
 #else
-	while(!(SPSR & _BV(SPIF)));
-	out.msb = SPDR;
+      asm volatile("nop");
+      while(!(SPSR & _BV(SPIF)));
+      out.lsb = SPDR;
+
+      SPDR = in.msb;
+      asm volatile("nop");
+      while(!(SPSR & _BV(SPIF)));
+      out.msb = SPDR;
 #endif
     }
 
