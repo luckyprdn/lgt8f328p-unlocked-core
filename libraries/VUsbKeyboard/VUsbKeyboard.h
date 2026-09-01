@@ -30,7 +30,7 @@ static uchar    idleRate;           // in 4 ms units
  * Redundant entries (such as LOGICAL_MINIMUM and USAGE_PAGE) have been omitted
  * for the second INPUT item.
  */
-PROGMEM const char usbHidReportDescriptor[35] = { /* USB report descriptor */
+PROGMEM const unsigned char usbHidReportDescriptor[35] = { /* USB report descriptor */
   0x05, 0x01,                    // USAGE_PAGE (Generic Desktop) 
   0x09, 0x06,                    // USAGE (Keyboard) 
   0xa1, 0x01,                    // COLLECTION (Application) 

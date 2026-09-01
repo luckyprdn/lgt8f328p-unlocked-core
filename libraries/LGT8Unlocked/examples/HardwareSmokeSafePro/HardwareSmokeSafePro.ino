@@ -40,10 +40,6 @@ static void eeprom_native_tests(void) {
   check("eeprom write32 @1016", lgt_eeprom_read32(a1) == v1);
 
   // --- unaligned / out-of-range must be refused ---
-  uint32_t dummy = 0;
-  bool refused_unalign = false;
-  // direct-register call would ignore alignment; go through the guarded path:
-  // lgt_eeprom_valid_word_range(2,1) is internal; simulate via known API behaviour:
   // read32 on unaligned returns 0 (guard) - but 0 could be legit. Use address past E2END.
   lgt_eeprom_write32(E2END + 1, 0xDEADBEEFUL);   // beyond size -> guarded no-op
   bool beyond_ok = (lgt_eeprom_read32(E2END + 1) != 0xDEADBEEFUL); // must not have written

@@ -20,7 +20,7 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  for (byte i = 0; i <= SAMPLES; i++) {
+  for (uint16_t i = 0; i < SAMPLES; i++) {
     analogWrite(DAC0, table[i]);
   }
 }

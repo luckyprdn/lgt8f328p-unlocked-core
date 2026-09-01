@@ -82,8 +82,6 @@ void setup()
     
 void loop()
 {
-    uint8_t i; 
-
     wdt_reset();
 
     advanceCircleByFixedAngle();

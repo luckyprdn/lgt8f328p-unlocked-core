@@ -23,7 +23,7 @@ VUsbGenericDevice VUsbDevice;
 /* ----------------------------- USB interface ----------------------------- */
 /* ------------------------------------------------------------------------- */
 
-PROGMEM const char usbHidReportDescriptor[22] = {    /* USB report descriptor */
+PROGMEM const unsigned char usbHidReportDescriptor[22] = {    /* USB report descriptor */
     0x06, 0x00, 0xff,              // USAGE_PAGE (Generic Desktop)
     0x09, 0x01,                    // USAGE (Vendor Usage 1)
     0xa1, 0x01,                    // COLLECTION (Application)
@@ -53,6 +53,7 @@ extern "C"{
 #endif 
 uchar   usbFunctionRead(uchar *data, uchar len)
 {
+	(void)len;  // fixed 2-byte reply; length not used
 	// return pin status of current selected port
 	uchar pinv = digitalRead(portn);	
 
@@ -67,6 +68,7 @@ uchar   usbFunctionRead(uchar *data, uchar len)
  */
 uchar   usbFunctionWrite(uchar *data, uchar len)
 {
+	(void)len;  // single 2-byte chunk; length not used
 	portn = data[0];
 	
 	if(data[1] < 2) {

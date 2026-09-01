@@ -85,7 +85,7 @@ void SPIClass::end() {
   // must never hang the CPU forever; after SPI_TRANSFER_WAIT_LIMIT empty
   // polls we bail out and stop issuing writes so state stays valid.
   #define SPI_TRANSFER_WAIT_LIMIT 4000000ul
-  const static void SPIClass::transfer(void * buf, void * retbuf, size_t count) {
+  void SPIClass::transfer(void * buf, void * retbuf, size_t count) {
     if (count == 0) return;
 
     uint8_t *p = (uint8_t *)buf;
@@ -98,12 +98,11 @@ void SPIClass::end() {
         uint32_t guard = SPI_TRANSFER_WAIT_LIMIT;
         while(SPFR & _BV(WRFULL)) { if (--guard == 0ul) return; }
         SPDR = *p++;
-        if (!(SPFR & _BV(RDEMPT))) { uint8_t in = SPDR; count--; }
         }
       while (count-->0) {
         uint32_t guard = SPI_TRANSFER_WAIT_LIMIT;
         while (SPFR & _BV(RDEMPT)) { if (--guard == 0ul) return; }
-        uint8_t in = SPDR;
+        (void)SPDR;   // drain RX FIFO
         }
       }
    else if (!buf && retbuf) {
@@ -112,7 +111,6 @@ void SPIClass::end() {
         uint32_t guard = SPI_TRANSFER_WAIT_LIMIT;
         while(SPFR & _BV(WRFULL)) { if (--guard == 0ul) return; }
         SPDR = 0;
-        if (!(SPFR & _BV(RDEMPT))) { *pret++=SPDR; count--; }
         }
       while (count-->0) {
         uint32_t guard = SPI_TRANSFER_WAIT_LIMIT;
