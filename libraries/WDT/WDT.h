@@ -100,29 +100,35 @@ void softRepairedWdtIsr(void) __attribute__((naked)) __attribute__((used))
 __attribute__((section(".init0")));
 void softRepairedWdtIsr(void) {
   __asm__ __volatile__(
-      "sts    (s_tempreg), r24\n\t" // s_tempreg = uint8_t register temp_reg;
-                                    // Save a register
+      "sts    (s_tempreg), r24\n\t" // s_tempreg = uint8_t register temp_reg; save a reg
       "in     r24, __SREG__   \n\t" // o_sreg = SREG;
       "sts    (o_sreg)  , r24 \n\t"
       "lds    r24, %[wdtcsr]  \n\t" // temp_reg = WDTCSR;
-#if defined(__LGT8FX8P__)
-      "sbrs   r24, %[wdif]    \n\t" // if (temp_reg & (1 << WDIF))
-#else
-      "sbrs   r24, %[wdie]    \n\t" // if (temp_reg & (1 << WDIE))
-#endif
+      // If WDE is set the watchdog is in reset mode: do NOT hijack it, let the
+      // hardware reset vector run.  Only intercept pure interrupt mode.
+      "sbrs   r24, %[wde]     \n\t"
       "rjmp   1f              \n\t"
-      // WDT interrupt
-      "andi   r24, %[nwdie]   \n\t" // WDTCSR = temp_reg & ~(1 << WDIE);
-      "sts    %[wdtcsr] , r24 \n\t"
+      // pure interrupt mode: clear WDIF (write-1-to-clear) AND WDIE so the
+      // interrupt cannot re-fire before the user ISR returns.  On LGT the
+      // hardware does NOT auto-clear these bits, so leaving them set makes the
+      // next timeout land on the reset vector.
+      "ldi    r25, %[clr]     \n\t" // r25 = ~(WDIE|WDIF)
+      "and    r24, r25        \n\t"
+      "sts    %[wdtcsr], r24  \n\t"
       "lds    r24, (o_sreg)   \n\t" // SREG = o_sreg;
-      "out    __SREG__  , r24 \n\t"
+      "out    __SREG__, r24   \n\t"
       "lds    r24, (s_tempreg)\n\t" // temp_reg = s_tempreg;
       "jmp    __vector_6      \n\t"
       "1:                     \n\t"
+      // WDE active: fall through, let the reset happen.  Restore SREG first.
+      "lds    r24, (o_sreg)   \n\t"
+      "out    __SREG__, r24   \n\t"
 
       : /* No outputs */
-      : [wdtcsr] "n"(_SFR_MEM_ADDR(WDTCSR)), [wdif] "i"(WDIF), [wdie] "i"(WDIE),
-        [nwdie] "i"(~(1 << WDIE)) );
+      : [wdtcsr] "n"(_SFR_MEM_ADDR(WDTCSR)), [wde] "i"(WDE),
+        [clr] "i"(~((1 << WDIE) | (1 << WDIF))), [wdif] "i"(WDIF),
+        [wdie] "i"(WDIE) );
+
 
   /*
       o_sreg = SREG;
