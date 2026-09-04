@@ -30,7 +30,8 @@ Updates arrive as new releases: run `core update-index` + `core upgrade`.
 
 ## 2. Release zip (manual, no internet at IDE time)
 
-Download `lgt8f-unlocked-v1.0.3.zip` from the
+Download `lgt8f-unlocked-v1.0.3.zip` (manual layout, keeps the
+`lgt8funlocked/avr` wrapper) from the
 [latest release](https://github.com/luckyprdn/lgt8f328p-unlocked-core/releases),
 then extract so the layout is:
 

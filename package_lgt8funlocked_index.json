@@ -14,10 +14,10 @@
           "architecture": "avr",
           "version": "1.0.3",
           "category": "Contributed",
-          "url": "https://github.com/luckyprdn/lgt8f328p-unlocked-core/releases/download/v1.0.3/lgt8f-unlocked-v1.0.3.zip",
-          "archiveFileName": "lgt8f-unlocked-v1.0.3.zip",
-          "checksum": "SHA-256:5b39be73b5c3ddd2b83fd20b6ddc80af91f0fcd122f2d7bf1a7d4e077a294ced",
-          "size": "722752",
+          "url": "https://github.com/luckyprdn/lgt8f328p-unlocked-core/releases/download/v1.0.3/lgt8funlocked-avr-1.0.3.zip",
+          "archiveFileName": "lgt8funlocked-avr-1.0.3.zip",
+          "checksum": "SHA-256:862dd96a3c7ef341fe5377e4c2f5330e1d294c0f43659bdff5e01a705c2618fd",
+          "size": "704756",
           "boards": [
             {
               "name": "LGT8F328"
