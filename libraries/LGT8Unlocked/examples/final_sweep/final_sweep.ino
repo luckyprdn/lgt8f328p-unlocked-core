@@ -195,9 +195,9 @@ static void t10_stress(void) {
 }
 static void t11_regs(void) {
   bool ok = true;
-  TCCR3B = (1 << CS30);
+  TCCR3B = (1 << CS31);   // /8: 16-bit TCNT3 wraps every ~16ms, no 2ms race
   uint16_t a = TCNT3; delay(2);
-  if (TCNT3 <= a) ok = false;
+  if (TCNT3 == a) ok = false;
   TCCR3B = 0;
   R("T11.Timer3 counts", ok);
   char d[20];
