@@ -48,6 +48,7 @@ static void dbg1(void) {
 static void dbg2(void) {
   dsp::add(0, 0);
   volatile uint32_t p = dsp::mul(30000, 2, false, false);  // 60000 = 0xEA60
+  (void)p;
   uint8_t s1 = _SFR_IO8(0x02);
   dsp::add(30000, 30000);                                    // saturating add
   uint8_t s2 = _SFR_IO8(0x02);
@@ -100,7 +101,7 @@ static void dbg5(void) {
   R("D5.fed-300ms-no-reset", true, "(DOC-023: interrupt mode absent - reset-mode ONLY)");
 }
 static void dbg6(void) {
-  dsp::mul(30000, 2); dsp::divmod(0x7FFFFFFFul, 1000); dsp::dotProduct;
+  (void)dsp::mul(30000, 2); (void)dsp::divmod(0x7FFFFFFFul, 1000);
   uint8_t dscr = DSCR;
   snprintf(buf, sizeof(buf), "DSCR=0x%02X after ops", dscr);
   R("D6.DSUEN-cleared", (dscr & _BV(DSUEN)) == 0, buf);
@@ -132,6 +133,7 @@ static void dbg10(void) {
   dsp::add(0, 0);
   uint8_t before = DSCR;
   volatile uint32_t p = dsp::mul(1000, 3);
+  (void)p;
   uint8_t after = DSCR;
   dsp::add(0, 0);
   uint8_t again = DSCR;
