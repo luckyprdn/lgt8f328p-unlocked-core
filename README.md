@@ -1,87 +1,120 @@
 # LGT8F328P Unlocked Core
 
-Arduino-compatible core untuk **LGT8F328P** dan **LGT8F328D/E** — MCU LQFP32/QFP48 buatan LogicGreen, kompatibel pin dengan ATmega328P tapi lebih cepat (32MHz, 12-bit ADC, DSP uDSC, 8KB EEPROM emulasi).
+An Arduino-compatible core for the **LGT8F328P** and **LGT8F328D/E** — the
+LogicGreen AVR-based MCUs that are pin-compatible with the ATmega328P but add
+a 32 MHz clock, a 12-bit ADC, the uDSC 16-bit DSP coprocessor, and flash-emulated
+EEPROM.
 
-## Fitur
+Every silicon-dependent claim in this repository is backed by measurements on
+real hardware (LGT8F328P-LQFP48, 2026-09-04) rather than datasheet assumptions.
+Findings are tracked as errata entries in `docs/datasheet-errata.md` (DOC-001..031).
 
-| Fitur | LGT8F328P | LGT8F328D/E |
-|-------|-----------|-------------|
-| uDSC 16-bit DSP | ✅ Full | 🚫 Stub |
-| Timer3 PWM + dead-time | ✅ | 🚫 Stub |
-| PGA + ADC monitor | ✅ | 🚫 Stub |
-| HDR high-drive GPIO | ✅ 6 pin | 🚫 Stub |
-| OPA0/OPA1 op-amp | 🚫 | ✅ **NEW** |
-| DAC0 + DAC1 | ✅ | ✅ **DAC1 baru** |
-| LGT8Unlocked library | ✅ 33 contoh | ✅ 31 contoh |
+## Feature matrix
 
-## Board Support
+| Feature | LGT8F328P | LGT8F328D/E |
+|---------|-----------|-------------|
+| uDSC 16-bit DSP coprocessor | Yes (silicon-verified) | Not present (stub) |
+| 12-bit ADC, PGA x1/x8/x16/x32 | Yes | ADC only |
+| Timer3 PWM + dead-time | Yes (QFP48) | No |
+| HDR high-drive GPIO | Yes (6 pins) | No |
+| SPI dual (2 lines in) | Yes | No |
+| OPA0/OPA1 op-amps | No | Yes |
+| DAC0 / DAC1 | DAC0 | DAC0 + DAC1 |
+| Async Timer2 + RTC | Yes | Yes (no internal 32 kHz) |
+| LGT8Unlocked library | 33 examples | 31 examples |
 
-- **328P-LQFP32** — Nano style, WAVGAT (chip 32 pin)
-- **328P-LQFP48 MiniEVB** — QFP48 (chip 48 pin)
+## Board support
+
+- **328P-LQFP32** — Nano-style modules (WAVGAT and similar)
+- **328P-LQFP48 MiniEVB** — QFP48 modules
 - **328P-LQFP32 wemos-TTGO-XI** — ESP32-like form factor
-- **328D** — LGT8F328D/E (chip 32 pin)
+- **328D** — LGT8F328D/E modules
 
-## Instalasi
+## Installation
 
 ```
 Arduino/
   └── hardware/
-      └── lgt8funlocked/     ← clone atau extract ZIP di sini
+      └── lgt8funlocked/      ← extract the release zip here
           └── avr/
-              ├── boards.txt
-              ├── cores/
-              └── ...
 ```
 
-Clone dari GitHub:
+or clone directly:
+
 ```bash
 cd ~/Arduino/hardware
 git clone https://github.com/luckyprdn/lgt8f328p-unlocked-core.git lgt8funlocked
 ```
 
-Restart Arduino IDE → Tools → Board → **LGT8F328**.
+Restart the IDE, then select Board → **LGT8F328** and the matching Variant.
+Upload speed is fixed at 57600 (matches the vendor bootloader).
 
-## LGT8Unlocked Library
+## Library
 
-Mulai dari **`FeatureTour`** (panduan semua modul, gaya Adafruit), lalu 38 contoh lain: `File → Examples → LGT8Unlocked`.
-
-### High-Level API (Arduino-style)
+The `LGT8Unlocked` library exposes 15 high-level objects plus the raw
+low-level API. Everything follows the usual Arduino style:
 
 ```cpp
 #include <LGT8Unlocked.h>
 
 void setup() {
-  AdcExt.readAverage(A0, 8);            // ADC rata-rata
-  Dsp.multiply(30000, 2);               // uDSC multiply
-  HdDrive.enable(lgt::HighDrive_PD5);  // high-drive GPIO
-  Dac.writeMillivolt(0, 1650);          // DAC millivolt
-  Pwm.timer1Frequency(1000);            // PWM frekuensi
-  Pcint.attach(2, onButton, PCINT_CHANGE); // pin-change interrupt
+  AdcExt.readAverage(A0, 8);          // averaged 12-bit ADC read
+  Dsp.multiply(30000, 2);             // saturating 16-bit multiply (uDSC on 328P)
+  HdDrive.enable(lgt::HighDrive_PD5); // high-drive GPIO
+  Dac.writeMillivolt(0, 1650);        // DAC in millivolts
+  Pwm.timer1Frequency(1000);          // PWM frequency
+  Pcint.attach(2, onButton, CHANGE);  // pin-change interrupt on any pin
 }
 ```
 
-Lengkap: 15 objek — `AdcExt`, `Dsp`, `Dac`, `HdDrive`, `Pwm`, `Timer`, `Comp`, `Usart`, `SpiDual`, `PinMux`, `Sys`, `Pwr`, `Opa`, `Pcint`, `Lvd`.
+Start with **`FeatureTour`** — a guided walkthrough of every module — then the
+per-module `Example_*` sketches, the advanced examples (PGA, Timer3PWM, uDSC,
+SPI dual, ...), and the silicon verification kit:
+
+- `silicon_verify` — the 6 core silicon gates
+- `final_sweep` — full byte-accurate sweep: arithmetic matrices, EEPROM 1020B,
+  WDT real-reset proof, RTC, PRR domains, and cycle benchmarks (one upload)
+- `danger_probe` — re-checks every feature flagged unreliable on this silicon
+- `HardwareSmokeSafePro` — recovery-safe production smoke test
+
+## Silicon notes (summary)
+
+These are hardware behaviors verified on the LQFP48 die; full detail in the
+errata document:
+
+- WDT interrupt mode does not fire on this die — use reset mode (DOC-023).
+- Native wide EEPROM program modes (16/32-bit) are broken and slow; the byte
+  engine is the only correct path and is used by the library (DOC-024/030).
+- DSP16 is saturating by contract (30000*2 = 32767), and `INT16_MIN / -1`
+  saturates instead of wrapping (DOC-025/027).
+- The DSSD register is not usable (DOC-022); extended opcode variants are
+  SW-composed from verified primitives (DOC-026).
+- `dotProductFast` (direct-SRAM window) matches, but does not beat, the I/O
+  path at any measured length — kept as an API, with no performance claim
+  (DOC-031).
+
+## Measured performance (cycles/op @ 32 MHz, LQFP48)
+
+| Operation | SW | uDSC | Notes |
+|-----------|----|----|-------|
+| div 32/16 | 648 | 158 | 4.1x - the headline win |
+| dot16 | 722 | 310 | 2.3x for dot/FIR workloads |
+| mul 16x16 | 77 | 102 | use SW for standalone multiplies |
+| ADC read | 773 | 417 | `analogReadFast` 1.85x |
+| EEPROM byte write | - | ~3 us | wide modes 65x slower (broken) |
 
 ## Safety
 
-Recovery-safe mode aktif secara default. Operasi berbahaya (Flash IAP, clock switch, EEPROM resize, LVD config) akan return `Locked` tanpa programmer. Aman untuk upload via bootloader USB.
+Recovery-safe mode is on by default: dangerous operations (flash IAP, clock
+switches, EEPROM resizing, LVD configuration, deep-sleep DPS2) return `Locked`
+unless the firmware is built with the recovery-safe gate disabled. Sketch
+uploads through the bootloader can never touch those regions.
 
-## Silicon Verification (LQFP48, 2026-09-04)
+## Documentation
 
-Seluruh klaim silicon di bawah ini **verified di hardware asli** (LGT8F328P-LQFP48, test 2026-09-04) — bukan asumsi datasheet. Temuan tiap fitur dicatat di `docs/datasheet-errata.md` (DOC-001..027).
-
-Sketch verifikasi (compile 328P, variant LQFP32 atau LQFP48):
-
-- `File → Examples → LGT8Unlocked → silicon_verify` — 6 test inti uDSC + WDT
-- `File → Examples → LGT8Unlocked → final_sweep` — satu-run penuh: byte-accurate (mul/divmod/DSP16/dot), EEPROM 1020B, WDT reset-real, benchmark cycles/op, stress 20k
-- `File → Examples → LGT8Unlocked → danger_probe` — verifikasi fitur yang di-flag unsafe/unreliable di silicon ini
-
-Rangkuman errata silicon LQFP48: WDT interrupt mode **tidak ada** (reset-mode saja); EEPROM native 32-bit write **rusak** (byte-engine); DSSD **unstable**; DSP16/extended-op di-SW-compose di atas jalur accumulator 32-bit yang proven (register-pair + nop, DOC-021).
-
-## Dokumentasi
-
-- `docs/api-reference.md` — 15 modul API lengkap
-- `docs/datasheet-errata.md` — 27 entri perbedaan datasheet vs implementasi (DOC-001..027, silicon-verified)
+- `docs/datasheet-errata.md` — DOC-001..031: measured silicon behavior vs. datasheet
+- `libraries/LGT8Unlocked/docs/api-reference.md` — full API reference
+- Each example is self-documenting (connect/watch/silicon notes in the header)
 
 ## License
 

@@ -1,16 +1,16 @@
 #ifndef LGT8_UNLOCKED_ARDUINO_EXT_H
 #define LGT8_UNLOCKED_ARDUINO_EXT_H
 
-// High-level Arduino-style extensions.
-// Pakai seperti Wire / Serial / SPI:
+// High-level, Arduino-style extensions for the LGT8F328P / LGT8F328D/E.
+// Use them like Wire / Serial / SPI:
 //   AdcExt.readAverage(A0, 8);
 //   Dsp.multiply(30000, 2);
 //   HdDrive.enable(lgt::HighDrive_PD5);
 //   Pcint.attach(2, cb, PCINT_CHANGE);
 //
-// Semua method stateless & cross-silicon: di LGT8F328P fitur DSP otomatis
-// pakai uDSC; di LGT8F328D/E fallback ke AVR native + return Unsupported
-// untuk fitur yang tidak ada (Timer3/OPA/HDR).
+// All methods are stateless and cross-silicon: on the 328P the DSP calls run
+// on the uDSC coprocessor; on the 328D/E they fall back to native AVR math
+// and features the silicon lacks (Timer3/OPA/HDR) return Unsupported.
 
 #include "common.h"
 #include "adc.h"
@@ -27,14 +27,14 @@
 #include "opa.h"
 #endif
 
-// Mode constants PCINT — enum supaya tidak bentrok macro di lgtx8p.h
+// PCINT mode constants as an enum so they do not clash with macros in lgtx8p.h
 enum PCINTMode : uint8_t { PCINT_CHANGE = 0, PCINT_RISING = 1, PCINT_FALLING = 2 };
 
 // ===========================================================================
 // 1. ADC
 // ===========================================================================
 struct AdcObj {
-  // Rata-rata N sample analogRead (noise reduction). Default 8.
+  // Average of N analogRead samples (noise reduction). Default 8.
   inline uint16_t readAverage(uint8_t pin, uint8_t n = 8) const {
     if (n == 0) n = 1;
     uint32_t s = 0;
@@ -71,7 +71,7 @@ struct DspObj {
   inline int16_t multiply(int16_t a, int16_t b) const { return (lgt::dsp::DSP16(a) * lgt::dsp::DSP16(b)); }
   inline int16_t divide(int16_t a, int16_t b) const { if (b == 0) return 0; return (lgt::dsp::DSP16(a) / lgt::dsp::DSP16(b)); }
   inline int16_t modulo(int16_t a, int16_t b) const { if (b == 0) return 0; return (lgt::dsp::DSP16(a) % lgt::dsp::DSP16(b)); }
-  // map() tapi multiply/divide lewat uDSC kalau ada.
+  // map(), scaled on the uDSC when available.
   inline int32_t map(int32_t x, int32_t inMin, int32_t inMax, int32_t outMin, int32_t outMax) const {
     if (inMax == inMin) return outMin;
     return (x - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
@@ -92,7 +92,7 @@ struct DspObj {
   inline int16_t firFast(const int16_t *x, const int16_t *h, uint16_t n) const {
     return (int16_t)lgt::dsp::firFast(x, h, n);
   }
-  // Rata-rata array 16-bit via MAC.
+  // Average of a 16-bit array via MAC.
   inline int16_t average(const int16_t *a, uint16_t n) const {
     if (n == 0 || !a) return 0;
     lgt::dsp::DSP16 acc = 0;
@@ -150,7 +150,7 @@ constexpr HdDriveObj HdDrive{};
 // 5. PWM
 // ===========================================================================
 struct PwmObj {
-  // Timer1 fast PWM di pin 9 (PB1/OC1A). Return prescaler code terpakai.
+  // Timer1 fast PWM on pin 9 (PB1/OC1A). Returns the prescaler code used.
   inline uint8_t timer1Frequency(uint32_t hz) const {
     if (hz == 0) return 0;
     uint32_t base = F_CPU / hz;
@@ -383,7 +383,7 @@ struct RtcObj {
 constexpr RtcObj Rtc{};
 
 // ===========================================================================
-// Global functions (untuk yang suka gaya functional Arduino biasa)
+// Free functions mirroring the objects for plain-Arduino style code
 // ===========================================================================
 inline uint16_t analogReadAverage(uint8_t pin, uint8_t n = 8) { return AdcExt.readAverage(pin, n); }
 inline uint8_t  pwmFrequency(uint32_t hz) { return Pwm.timer1Frequency(hz); }
