@@ -95,9 +95,11 @@ static void wstring_edge_test(void) {
   // startsWith with pattern longer than string (was unsigned-underflow OOB read)
   check("WString startsWith long-pattern safe", s.startsWith("hello world!!") == false);
   check("WString startsWith valid", s.startsWith("hello") == true);
-  // indexOf with a default-constructed (NULL-buffer) String (was strstr NULL crash)
+  // indexOf with an empty-pattern String. An empty (but valid) buffer is a
+  // normal string: strstr(s,"") == s -> index 0 (Java/Arduino semantics).
+  // The NULL-buffer crash guard is separate: !buffer || !s2.buffer -> -1.
   String empty;
-  check("WString indexOf(empty) safe", s.indexOf(empty) == -1);
+  check("WString indexOf(empty)==0", s.indexOf(empty) == 0);
   check("WString indexOf valid", s.indexOf("world") == 6);
   check("WString indexOf OOB fromIndex", s.indexOf("world", 20) == -1);
 }
