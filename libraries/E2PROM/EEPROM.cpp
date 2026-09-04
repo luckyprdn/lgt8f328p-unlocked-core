@@ -207,6 +207,15 @@ uint8_t lgt_eeprom_read_byte( uint16_t address )
 void lgt_eeprom_write_byte( uint16_t address, uint8_t value, bool real_address_mode )
 {
 	if (!lgt_eeprom_address_is_user_accessible(address, real_address_mode)) return;
+
+	// DOC-028 (perf 2026-09-04): skip identical bytes. Most firmware write
+	// patterns are idempotent (defaults/config rewritten every boot); the
+	// previous code issued an EEMPE->EEPE program cycle (+ possible page swap)
+	// even when the byte already held the value. Early-out on equality: no
+	// program cycle, no page swap, no flash wear. Cost when values DO differ:
+	// one extra read (~1us) vs the millisecond-scale program cycle.
+	if (lgt_eeprom_read_byte(address, real_address_mode) == value) return;
+
 	if (!real_address_mode) address = lgt_eeprom_continuous_address_to_real_address(address);
 
 	// Set address/data and explicitly return the controller to 8-bit mode.
@@ -219,6 +228,9 @@ void lgt_eeprom_write_byte( uint16_t address, uint8_t value, bool real_address_m
 void lgt_eeprom_write_byte( uint16_t address, uint8_t value )
 {
 	if ( address >= (uint16_t)lgt_eeprom_size( false ) ) return;
+
+	// DOC-028: skip identical bytes (see 328P branch note).
+	if (lgt_eeprom_read_byte(address) == value) return;
 	
 	uint8_t	__bk_sreg = SREG;
 
