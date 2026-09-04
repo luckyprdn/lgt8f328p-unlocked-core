@@ -223,7 +223,7 @@ def test_timer2_and_spi_dual_hardening() -> None:
 
 def test_docs_and_version() -> None:
     platform = text("platform.txt")
-    require("version=2.0.7" in platform, "platform version must match 2.0.7 package")
+    require("version=1.0.3" in platform, "platform version must match the boards-manager release (1.0.3)")
     for rel in ("docs/coverage.md", "docs/datasheet-errata.md", "docs/hardware-verification.md", "CHANGELOG-unlocked.md"):
         require((ROOT / rel).exists(), f"missing project documentation {rel}")
 
