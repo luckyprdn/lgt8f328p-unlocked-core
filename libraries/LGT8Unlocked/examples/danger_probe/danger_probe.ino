@@ -67,11 +67,11 @@ static void dbg3(void) {
   R("D3.eeprom-write32-fallback", r == w, buf);
 }
 static void dbg4(void) {
-  uint32_t mn = dsp::mulNegative(200, 3);          // expect -(600) = 0xFFFFFE98
+  uint32_t mn = dsp::mulNegative(200, 3);          // expect -(600) = 0xFFFFFDA8
   uint32_t mh = dsp::mulHalf(200, 3);              // expect 300
   snprintf(buf, sizeof(buf), "mulNeg=0x%08lX mulHalf=%lu", (unsigned long)mn, (unsigned long)mh);
   I("D4.SW-composed-variants", buf);
-  R("D4.mulNegative=-600", mn == 0xFFFFFE98ul, "");
+  R("D4.mulNegative=-600", mn == (uint32_t)(-(int32_t)600), "");
   R("D4.mulHalf=300", mh == 300, "");
   dsp::add(0, 0);                                  // DA := 0
   uint32_t m1 = dsp::mac(200, 3);                  // 0 + 600
