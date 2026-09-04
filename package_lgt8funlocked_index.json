@@ -16,8 +16,8 @@
           "category": "Contributed",
           "url": "https://github.com/luckyprdn/lgt8f328p-unlocked-core/releases/download/v1.0.3/lgt8f-unlocked-v1.0.3.zip",
           "archiveFileName": "lgt8f-unlocked-v1.0.3.zip",
-          "checksum": "SHA-256:a212150230312ef563240c50d7ebb12b66af1ce6e2a4313ce04db198bcfbec92",
-          "size": "719088",
+          "checksum": "SHA-256:5b39be73b5c3ddd2b83fd20b6ddc80af91f0fcd122f2d7bf1a7d4e077a294ced",
+          "size": "722752",
           "boards": [
             {
               "name": "LGT8F328"
