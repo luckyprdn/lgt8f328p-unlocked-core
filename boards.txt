@@ -5,8 +5,17 @@
 menu.clock_source=Clock Source
 menu.clock_div=Clock Divider
 menu.variant=Variant
-menu.arduino_isp=SERIAL_RX_BUFFER_SIZE
 menu.upload_speed=Upload speed
+
+328.menu.upload_speed.57600=57600
+328.menu.upload_speed.57600.upload.speed=57600
+328.menu.upload_speed.115200=115200
+328.menu.upload_speed.115200.upload.speed=115200
+328.menu.upload_speed.230400=230400
+328.menu.upload_speed.230400.upload.speed=230400
+328.menu.upload_speed.19200=19200
+328.menu.upload_speed.19200.upload.speed=19200
+menu.arduino_isp=SERIAL_RX_BUFFER_SIZE
 menu.ram_profile=RAM / Buffer Profile
 
 #############################
@@ -14,6 +23,7 @@ menu.ram_profile=RAM / Buffer Profile
 #############################
 
 328.name=LGT8F328
+328.upload.speed=57600
 328.upload.tool=avrdude
 328.upload.protocol=arduino
 328.upload.maximum_data_size=2048
