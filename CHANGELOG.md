@@ -37,3 +37,9 @@ log (`docs/datasheet-errata.md`, DOC-001..031).
   (DOC-025/027), WDT reset-mode only (DOC-023), EEPROM byte engine
   (DOC-024), extended-op SW composition (DOC-026)
 - 34 examples including the silicon verification kit
+
+## v1.0.4 - 2026-09-04
+
+- perf: `Print::printNumber` (all Serial/print number output) now formats
+  through the uDSC 32/16 DIVMOD on 328P - roughly 5-10x fewer CPU cycles
+  per printed number. 328D/E/88A keep the software path.
