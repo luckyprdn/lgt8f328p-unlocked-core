@@ -50,9 +50,14 @@ struct DivResult{uint32_t quotient;uint16_t remainder;bool zero;};
 static inline uint8_t mulOpcode(bool xS,bool yS,bool neg=false,bool half=false){uint8_t o=0x40u;if(xS)o|=0x20u;if(yS)o|=0x10u;if(half)o|=0x08u;if(!neg)o|=0x04u;return o;}
 static inline uint8_t macOpcode(bool xS,bool yS,bool sub=false,bool half=false,bool sA=false){uint8_t o=0x40u;if(xS)o|=0x20u;if(yS)o|=0x10u;if(half)o|=0x08u;if(!sub)o|=0x04u;o|=0x02u;if(sA)o|=0x01u;return o;}
 static inline uint32_t mul(uint16_t x,uint16_t y,bool xS=false,bool yS=false){enable();setX(x);setY(y);command(mulOpcode(xS,yS));uint32_t r=accumulator();disable();return r;}
-static inline uint32_t mulNegative(uint16_t x,uint16_t y,bool xS=false,bool yS=false){enable();setX(x);setY(y);command(mulOpcode(xS,yS,true));uint32_t r=accumulator();disable();return r;}
 static inline uint32_t mulHalf(uint16_t x,uint16_t y,bool xS=false,bool yS=false){enable();setX(x);setY(y);command(mulOpcode(xS,yS,false,true));uint32_t r=accumulator();disable();return r;}
-static inline uint32_t mulNegativeHalf(uint16_t x,uint16_t y,bool xS=false,bool yS=false){enable();setX(x);setY(y);command(mulOpcode(xS,yS,true,true));uint32_t r=accumulator();disable();return r;}
+// DOC-026 (silicon-audited 2026-09-04): the IR "neg" bit encoding used by
+// mulNegative/mulNegativeHalf returns 0 on real silicon (wrong opcode class);
+// macHalf's half bit is likewise ignored for MACs. These variants are now
+// composed from the proven mul/mulHalf primitives (byte-exact by
+// construction) instead of raw undocumented opcodes.
+static inline uint32_t mulNegative(uint16_t x,uint16_t y,bool xS=false,bool yS=false){return (uint32_t)(-(int32_t)mul(x,y,xS,yS));}
+static inline uint32_t mulNegativeHalf(uint16_t x,uint16_t y,bool xS=false,bool yS=false){return (uint32_t)(-(int32_t)mulHalf(x,y,xS,yS));}
 static inline uint32_t mac(uint16_t x,uint16_t y,bool xS=false,bool yS=false,bool sA=false){enable();setX(x);setY(y);command(macOpcode(xS,yS,false,false,sA));uint32_t r=accumulator();disable();return r;}
 static inline uint32_t macHalf(uint16_t x,uint16_t y,bool xS=false,bool yS=false,bool sA=false){enable();setX(x);setY(y);command(macOpcode(xS,yS,false,true,sA));uint32_t r=accumulator();disable();return r;}
 static inline uint32_t msc(uint16_t x,uint16_t y,bool xS=false,bool yS=false,bool sA=false){enable();setX(x);setY(y);command(macOpcode(xS,yS,true,false,sA));uint32_t r=accumulator();disable();return r;}
