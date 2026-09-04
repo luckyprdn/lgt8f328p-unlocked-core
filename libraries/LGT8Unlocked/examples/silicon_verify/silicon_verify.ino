@@ -1,6 +1,7 @@
 /*
  * LGT8F328P Integrated Silicon Verification Sketch
- * Covers the three P0 fixes: uDSC (DOC-018/019), WDT ISR (DOC-020), ADC 12-bit.
+ * Covers the silicon fixes: uDSC (DOC-021/022), WDT reset-mode (DOC-023),
+ * ADC 12-bit.
  * Upload when the board is available. Serial @ 115200.
  * Each section prints PASS/FAIL with the measured value; a final summary line
  * lists how many passed. Designed to run unattended and report over UART.
@@ -50,25 +51,44 @@ void test_udsc_16bit() {
   report("uDSC.saturate", (int)s == 32767, buf);
 }
 
-// ---- WDT: interrupt-only must fire repeatedly, NOT reset (DOC-020) ----
-volatile uint8_t g_wdtTicks = 0;
-ISR(WDT_vect) { g_wdtTicks++; }
-
-void test_wdt_interrupt() {
-  g_wdtTicks = 0;
-  // Enable 32kHz RC and arm interrupt-only mode at the shortest timeout
-  // (WTO_64MS = 0 -> ~64ms period at 32kHz).  wdt_ienable sets WDIE + timeout,
-  // NOT WDE, so the trampoline should fire the ISR repeatedly without reset.
+// ---- WDT: reset-mode arm + feed + disarm (DOC-023) ----
+// DOC-023: WDT INTERRUPT mode does not work on tested silicon (timeout
+// always resets, ISR never fires - probe-verified 2026-09-04). The usable,
+// silicon-proven watchdog path is RESET mode: arm WDE, feed with WDR, disarm.
+// This test arms reset-mode (WDP=0b110 -> 4s @32kHz), feeds for 300ms (must
+// NOT reset), then disarms cleanly.
+static void test_wdt_resetmode() {
   Lgtwdt.begin(WTO_32KHZ);
-  wdt_ienable(WTO_64MS);
-  // If the trampoline is broken, the MCU resets on the 2nd timeout and this
-  // counter never reaches >=2.  Wait ~400ms (no reset expected).
+  // arm reset mode, both stores in one asm block (WDTOE window-safe)
+  uint8_t sreg = SREG;
+  cli();
+  __asm__ __volatile__(
+      "wdr"                 "\n\t"
+      "sts %[csr], %[u]"    "\n\t"
+      "sts %[csr], %[r]"
+      :
+      : [csr] "n"(_SFR_MEM_ADDR(WDTCSR)),
+        [u] "r"((uint8_t)((1 << WDCE) | (1 << WDE))),
+        [r] "r"((uint8_t)((1 << WDE) | 0b110))   // WDP=0b110 -> 4s @32kHz
+      : "memory");
+  SREG = sreg;
   uint32_t t0 = millis();
-  while (millis() - t0 < 400) { /* spin */ }
-  wdt_disable(); // avr-libc: stop the watchdog
-  char buf[16]; snprintf(buf, sizeof(buf), "ticks=%u", g_wdtTicks);
-  // Expect at least 2 interrupts in 400ms at 64ms period (no reset).
-  report("WDT.isrRepeats", g_wdtTicks >= 2, buf);
+  while (millis() - t0 < 300) {
+    __asm__ __volatile__("wdr" ::: "memory");    // feed: must stay alive
+  }
+  // disarm (windowed)
+  sreg = SREG; cli();
+  __asm__ __volatile__(
+      "wdr"                 "\n\t"
+      "sts %[csr], %[u]"    "\n\t"
+      "sts %[csr], %[z]"
+      :
+      : [csr] "n"(_SFR_MEM_ADDR(WDTCSR)),
+        [u] "r"((uint8_t)((1 << WDCE) | (1 << WDE))),
+        [z] "r"((uint8_t)0x00)
+      : "memory");
+  SREG = sreg;
+  report("WDT.resetArmFeed", true, "no reset while fed 300ms");
 }
 
 // ---- ADC: 12-bit read on a known divider (e.g. 1/2 VCC via AREF) ----
@@ -87,7 +107,7 @@ void setup() {
   while (!Serial) { /* wait for USB */ }
   Serial.println("=== LGT8F328P Silicon Verification ===");
   test_udsc_16bit();
-  test_wdt_interrupt();
+  test_wdt_resetmode();
   test_adc_12bit();
   Serial.print("=== SUMMARY pass=");
   Serial.print(g_pass);

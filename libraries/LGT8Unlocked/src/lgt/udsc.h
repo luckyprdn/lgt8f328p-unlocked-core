@@ -20,15 +20,25 @@ static inline void disable(){DSCR&=~(uint8_t)_BV(DSUEN);}
 static inline void mappingIO(bool y=true){y?DSCR|=_BV(DSMM):DSCR&=~_BV(DSMM);}
 static inline uint8_t flags(){return DSCR&0x37u;}static inline bool negativeFlag(){return DSCR&_BV(2);}static inline bool zeroFlag(){return DSCR&_BV(1);}static inline bool carryFlag(){return DSCR&_BV(0);}static inline bool divideDone(){return DSCR&_BV(DSD1);}static inline bool divideByZero(){return DSCR&_BV(DSD0);}
 static inline void command(uint8_t o){DSIR=o;}static inline void waitDivision(){while(!divideDone()){}}
-static inline void setX(uint16_t v){__asm__ __volatile__("out %0,%A1"::"I"(_SFR_IO_ADDR(DSDX)),"w"(v):"memory");__asm__ __volatile__("out %0,%B1"::"I"(_SFR_IO_ADDR(DSDX)+1),"w"(v):"memory");}
-static inline void setY(uint16_t v){__asm__ __volatile__("out %0,%A1"::"I"(_SFR_IO_ADDR(DSDY)),"w"(v):"memory");__asm__ __volatile__("out %0,%B1"::"I"(_SFR_IO_ADDR(DSDY)+1),"w"(v):"memory");}
-static inline uint16_t getX(){uint16_t v;__asm__ __volatile__("in %A0,%1":"=w"(v):"I"(_SFR_IO_ADDR(DSDX)):"memory");__asm__ __volatile__("in %B0,%1":"=w"(v):"I"(_SFR_IO_ADDR(DSDX)+1):"memory");return v;}
-static inline uint16_t getY(){uint16_t v;__asm__ __volatile__("in %A0,%1":"=w"(v):"I"(_SFR_IO_ADDR(DSDY)):"memory");__asm__ __volatile__("in %B0,%1":"=w"(v):"I"(_SFR_IO_ADDR(DSDY)+1):"memory");return v;}
+// DOC-021 (silicon-verified 2026-09-04): DX/DY/AL/AH are 16-bit registers
+// accessed by REGISTER-PAIR transfer: one `out <reg>, r_lo` moves the whole
+// pair r_lo:r_lo+1 (vendor dsu_xmuluu pattern + ibawizard LGT8F328P notes).
+// The earlier DOC-019 "write the high byte to the adjacent IO slot" fix was
+// WRONG on silicon: slot 0x11 is DSDY itself, so setX's second write
+// clobbered the Y operand (probe-verified: every mul result corrupted).
+// PIPELINE HAZARD (P0 #2, confirmed): uDSC samples the HIGH register first;
+// if the compiler's last load (high byte) just executed, it may not have
+// propagated -> stale high byte. A `nop` between operand load and `out`
+// fixes it (ibawizard works_ok1). Reads need no guard.
+static inline void setX(uint16_t v){__asm__ __volatile__("nop" "\n\t" "out %0,%A1"::"I"(_SFR_IO_ADDR(DSDX)),"w"(v):"memory");}
+static inline void setY(uint16_t v){__asm__ __volatile__("nop" "\n\t" "out %0,%A1"::"I"(_SFR_IO_ADDR(DSDY)),"w"(v):"memory");}
+static inline uint16_t getX(){uint16_t v;__asm__ __volatile__("in %A0,%1":"=w"(v):"I"(_SFR_IO_ADDR(DSDX)):"memory");return v;}
+static inline uint16_t getY(){uint16_t v;__asm__ __volatile__("in %A0,%1":"=w"(v):"I"(_SFR_IO_ADDR(DSDY)):"memory");return v;}
 static inline uint16_t low(){uint16_t v;__asm__ __volatile__("in %A0,%1":"=w"(v):"I"(_SFR_IO_ADDR(DSAL)):"memory");return v;}
 static inline uint16_t high(){uint16_t v;__asm__ __volatile__("in %A0,%1":"=w"(v):"I"(_SFR_IO_ADDR(DSAH)):"memory");return v;}
 static inline uint16_t saturated(){uint16_t v;__asm__ __volatile__("in %A0,%1":"=w"(v):"I"(_SFR_IO_ADDR(DSSD)):"memory");return v;}
 static inline uint32_t accumulator(){uint32_t v=(uint32_t)low();v|=((uint32_t)high()<<16);return v;}
-static inline void setAccumulator(uint32_t v){uint16_t lo=(uint16_t)v,hi=(uint16_t)(v>>16);__asm__ __volatile__("out %0,%A1"::"I"(_SFR_IO_ADDR(DSAL)),"w"(lo):"memory");__asm__ __volatile__("out %0,%A1"::"I"(_SFR_IO_ADDR(DSAH)),"w"(hi):"memory");}
+static inline void setAccumulator(uint32_t v){uint16_t lo=(uint16_t)v,hi=(uint16_t)(v>>16);__asm__ __volatile__("nop" "\n\t" "out %0,%A1"::"I"(_SFR_IO_ADDR(DSAL)),"w"(lo):"memory");__asm__ __volatile__("nop" "\n\t" "out %0,%A1"::"I"(_SFR_IO_ADDR(DSAH)),"w"(hi):"memory");}
 static inline void clear(){enable();command(OP_CLEAR);disable();}
 static inline uint32_t add(uint16_t x,uint16_t y,bool s=false){enable();setX(x);setY(y);command(s?OP_ADD_S:OP_ADD_U);uint32_t r=accumulator();disable();return r;}
 static inline uint32_t sub(uint16_t x,uint16_t y,bool s=false){enable();setX(x);setY(y);command(s?OP_SUB_S:OP_SUB_U);uint32_t r=accumulator();disable();return r;}
@@ -94,6 +104,14 @@ static inline int32_t firFast(const int16_t *ring,const int16_t *h,uint16_t n){
   return dotProductFast(ring,h,n);
 }
 
+// DOC-022 (silicon-verified 2026-09-04): the DSSD register (IO 0x02, "16-bit
+// saturation result") reads 0xFF/0xFFFF on real silicon regardless of the
+// operation issued (constant across every probe dump). It is NOT a usable
+// saturation result. DSP16 therefore reads the proven 32-bit accumulator and
+// clamps in software (sat16). dsp::saturated() is kept for API compatibility
+// but must not be used for results.
+static inline int16_t sat16(int32_t v){if(v>32767)return 32767;if(v<-32768)return -32768;return (int16_t)v;}
+
 // DSP16 — 16-bit signed int whose arithmetic TRANSPARENTLY uses uDSC.
 // Write z = a * b + c and the uDSC does the math.  Mixed int constants
 // work: z = x * 2 / 3 + 7.
@@ -104,13 +122,23 @@ struct DSP16 {
   operator int32_t() const { return (int32_t)v; }
 
   friend DSP16 operator+(DSP16 a, DSP16 b) {
-    enable(); setX((uint16_t)a.v); setY((uint16_t)b.v); command(OP_ADD_S);uint16_t _r=saturated();disable();return DSP16((int16_t)_r);
+    // MAC path is silicon-proven (dotProduct exact); DSSD is not (DOC-022).
+    // DA = a*1 + 1*b  (0x77 signed MAC, proven opcode).
+    enable(); command(OP_CLEAR);
+    setX((uint16_t)a.v); setY(1); command(macOpcode(true, true, false, false, true));
+    setX(1); setY((uint16_t)b.v); command(macOpcode(true, true, false, false, true));
+    int16_t _r = sat16((int32_t)accumulator()); disable(); return DSP16(_r);
   }
   friend DSP16 operator-(DSP16 a, DSP16 b) {
-    enable(); setX((uint16_t)a.v); setY((uint16_t)b.v); command(OP_SUB_S);uint16_t _r=saturated();disable();return DSP16((int16_t)_r);
+    enable(); command(OP_CLEAR);
+    setX((uint16_t)a.v); setY(1); command(macOpcode(true, true, false, false, true));   // DA = a
+    setX((uint16_t)-1); setY((uint16_t)b.v); command(macOpcode(true, true, false, false, true)); // DA += -b
+    int16_t _r = sat16((int32_t)accumulator()); disable(); return DSP16(_r);
   }
   friend DSP16 operator*(DSP16 a, DSP16 b) {
-    enable(); setX((uint16_t)a.v); setY((uint16_t)b.v); command(mulOpcode(true, true));uint16_t _r=saturated();disable();return DSP16((int16_t)_r);
+    // signed 16x16 mul overwrites DA (same class as verified 0x44 overwrite)
+    enable(); setX((uint16_t)a.v); setY((uint16_t)b.v); command(mulOpcode(true, true));
+    int16_t _r = sat16((int32_t)accumulator()); disable(); return DSP16(_r);
   }
   friend DSP16 operator/(DSP16 a, DSP16 b) {
     if (b.v == 0) return DSP16(0);
@@ -134,8 +162,11 @@ struct DSP16 {
   DSP16 &operator/=(DSP16 o) { *this = *this / o; return *this; }
   DSP16 &operator%=(DSP16 o) { *this = *this % o; return *this; }
   DSP16 &mac(DSP16 a, DSP16 b) {
-    enable(); setX((uint16_t)a.v); setY((uint16_t)b.v); command(macOpcode(true, true, false, false, true));
-    v = (int16_t)saturated(); disable(); return *this;
+    // DA = v + a*b via proven 0x77 MAC chain (DOC-022: no DSSD).
+    enable(); command(OP_CLEAR);
+    setX((uint16_t)v); setY(1); command(macOpcode(true, true, false, false, true));
+    setX((uint16_t)a.v); setY((uint16_t)b.v); command(macOpcode(true, true, false, false, true));
+    v = sat16((int32_t)accumulator()); disable(); return *this;
   }
 };
 // Mixed-operand overloads so DSP16 * 2 and 2 * DSP16 both compile.

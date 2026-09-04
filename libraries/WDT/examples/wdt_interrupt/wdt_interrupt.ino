@@ -1,4 +1,11 @@
 /********************************************************
+ * NOTE (DOC-023, silicon-verified 2026-09-04 on LQFP48):
+ * WDT INTERRUPT mode does NOT work on the tested LGT8F328P
+ * die - the timeout RESETS instead of firing WDT_vect. This
+ * example documents the classic API; verify on your silicon
+ * before relying on it. Reset mode (wdt_enable + wdr) works.
+ ********************************************************/
+/********************************************************
  * This example shows how the watchdog interrupt works. *
  * About every 4 seconds there will be a wdt interrupt. *
  * If you uncomment the line containing wdt_reset() the *
