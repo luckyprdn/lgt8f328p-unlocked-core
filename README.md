@@ -36,7 +36,7 @@ entries in `docs/datasheet-errata.md` (DOC-001..031).
 *File → Preferences → Additional Boards Manager URLs* and add:
 
 ```
-https://cdn.jsdelivr.net/gh/luckyprdn/lgt8f328p-unlocked-core@main/package_lgt8funlocked_index.json
+https://luckyprdn.github.io/lgt8f328p-unlocked-core/package_lgt8funlocked_index.json
 ```
 
 Then *Tools → Board → Boards Manager*, search **LGT8F328**, install
@@ -44,7 +44,7 @@ Then *Tools → Board → Boards Manager*, search **LGT8F328**, install
 
 ```bash
 arduino-cli core update-index \
-  --additional-urls https://cdn.jsdelivr.net/gh/luckyprdn/lgt8f328p-unlocked-core@main/package_lgt8funlocked_index.json
+  --additional-urls https://luckyprdn.github.io/lgt8f328p-unlocked-core/package_lgt8funlocked_index.json
 arduino-cli core install lgt8funlocked:avr
 ```
 
