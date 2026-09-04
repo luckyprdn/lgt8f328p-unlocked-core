@@ -99,6 +99,22 @@ struct DspObj {
     for (uint16_t i = 0; i < n; ++i) acc.mac(lgt::dsp::DSP16(a[i]), 1);
     return (int16_t)((int32_t)acc.v / n);
   }
+  // Full convolution out[i] = sum_k x[k]*h[i-k], length nx+nh-1.
+  // Byte-exact reference implementation (SW). For heavy workloads prefer
+  // chaining dotProduct() (uDSC) - the final_sweep benchmark compares both.
+  inline void convolve(const int16_t *x, uint16_t nx, const int16_t *h,
+                       uint16_t nh, int32_t *out) const {
+    if (!x || !h || !out || nx == 0 || nh == 0) return;
+    uint16_t L = (uint16_t)(nx + nh - 1);
+    for (uint16_t i = 0; i < L; ++i) {
+      int32_t acc = 0;
+      int16_t k0 = (int16_t)i - (int16_t)(nh - 1); if (k0 < 0) k0 = 0;
+      int16_t k1 = (int16_t)i < (int16_t)nx - 1 ? (int16_t)i : (int16_t)(nx - 1);
+      for (int16_t k = k0; k <= k1; ++k)
+        acc += (int32_t)x[k] * h[(int16_t)i - k];
+      out[i] = acc;
+    }
+  }
 };
 constexpr DspObj Dsp{};
 
@@ -293,6 +309,14 @@ struct PwrObj {
   inline void powerSave() const { lgt::Power::save(); }
   inline void powerDown0() const { lgt::Power::dps0(); }
   inline void powerDown1() const { lgt::Power::dps1(); }
+  // Peripheral power domains (PRR): cut the clock of unused peripherals.
+  // Safe in ANY build; re-enable before using the peripheral again.
+  inline lgt::Status peripheral(lgt::Power::Peripheral p, bool on) const {
+    return on ? lgt::Power::enable(p) : lgt::Power::disable(p);
+  }
+  // DPS2 (periodic deep sleep) exists on 328P but is Locked in the
+  // recovery-safe build by design - needs a non-recovery rebuild to use
+  // (raw API: lgt::Power::dps2/dps2Timer/dps2WakePins).
 };
 constexpr PwrObj Pwr{};
 
@@ -336,6 +360,27 @@ struct LvdObj {
   }
 };
 constexpr LvdObj Lvd{};
+
+// ===========================================================================
+// 16. RTC — seconds counter on the async Timer2 32 kHz clock
+// ===========================================================================
+// Runs while the chip is in power-save/idle (async timer keeps ticking),
+// so it survives sleeps. Drift is set by the internal 32 kHz RC (~+/-1%);
+// for precision use an external 32.768 kHz crystal (Timer2Async).
+// Exclusive with tone()/other Timer2 use.
+namespace lgt {
+Status   rtcBegin();          // internal 32 kHz, CTC 1 Hz
+void     rtcEnd();
+uint32_t rtcSeconds();        // cli-guarded read
+void     rtcSet(uint32_t s);
+}
+struct RtcObj {
+  inline lgt::Status begin() const { return lgt::rtcBegin(); }
+  inline void end() const { lgt::rtcEnd(); }
+  inline uint32_t seconds() const { return lgt::rtcSeconds(); }
+  inline void set(uint32_t s) const { lgt::rtcSet(s); }
+};
+constexpr RtcObj Rtc{};
 
 // ===========================================================================
 // Global functions (untuk yang suka gaya functional Arduino biasa)

@@ -41,7 +41,11 @@ Status pinChangeAttach(uint8_t pin, void (*callback)(void), uint8_t mode) {
 
   uint8_t s = SREG; cli();
   for (uint8_t i = 0; i < pcint_count; ++i)
-    if (pcint_pins[i] == pin) { pcint_cb[i] = callback; pcint_mode[i] = mode; SREG = s; return Ok; }
+    if (pcint_pins[i] == pin) {
+      pcint_cb[i] = callback; pcint_mode[i] = mode;
+      pcint_last[i] = digitalRead(pin) ? 1 : 0;   // re-arm edge state on replace
+      SREG = s; return Ok;
+    }
   if (pcint_count >= LGT_PCINT_SLOTS) { SREG = s; return OutOfRange; }
 
   pcint_pins[pcint_count] = pin;
@@ -81,5 +85,69 @@ ISR(PCINT3_vect) { lgt::pcint_handle(3); }
 #if defined(__LGT8FX8P__)
 ISR(PCINT4_vect) { lgt::pcint_handle(4); }
 #endif
+
+} // namespace lgt
+
+// ===========================================================================
+// RTC — 1 Hz seconds counter on the async Timer2 32 kHz clock (see header).
+// CTC: async clock /1024 = 32 Hz; OCR2A=31 -> 1 interrupt/second.
+// Exclusive with tone() / other Timer2 usage.
+// ===========================================================================
+namespace {
+volatile uint32_t g_rtcSeconds = 0;
+volatile bool     g_rtcRunning = false;
+} // namespace
+
+ISR(TIMER2_COMPA_vect) { ++g_rtcSeconds; }
+
+namespace lgt {
+
+Status rtcBegin() {
+#if !defined(INTCK)
+  return Unsupported;               // async 32 kHz internal clock: 328P only
+#else
+  if (g_rtcRunning) return Ok;
+  uint8_t sreg = SREG;
+  cli();
+  uint8_t oldMask = TIMSK2;
+  // async source select happens inside Timer2Async::begin; then we need the
+  // 1 Hz CTC config: TCCR2A=CTC(WGM21), TCCR2B=prescale 1024.
+  Status st = Timer2Async::begin(Timer2Async::Internal32KHz,
+                                 (uint8_t)_BV(WGM21),
+                                 (uint8_t)(_BV(CS22) | _BV(CS21) | _BV(CS20)),
+                                 0, 31, 0xff, 0u);
+  if (st != Ok) { SREG = sreg; return st; }
+  TIMSK2 = (uint8_t)((TIMSK2 & (uint8_t)~(uint8_t)(_BV(OCIE2B) | _BV(TOIE2))) | _BV(OCIE2A));
+  g_rtcRunning = true;
+  SREG = sreg;
+  return Ok;
+#endif
+}
+
+void rtcEnd() {
+  uint8_t sreg = SREG;
+  cli();
+  if (g_rtcRunning) {
+    TIMSK2 &= (uint8_t)~_BV(OCIE2A);
+    TCCR2B = 0;                     // stop counter
+    g_rtcRunning = false;
+  }
+  SREG = sreg;
+}
+
+uint32_t rtcSeconds() {
+  uint8_t sreg = SREG;
+  cli();
+  uint32_t v = g_rtcSeconds;        // 32-bit read must not tear against ISR
+  SREG = sreg;
+  return v;
+}
+
+void rtcSet(uint32_t s) {
+  uint8_t sreg = SREG;
+  cli();
+  g_rtcSeconds = s;
+  SREG = sreg;
+}
 
 } // namespace lgt

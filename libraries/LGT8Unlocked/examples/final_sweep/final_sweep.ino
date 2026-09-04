@@ -162,11 +162,21 @@ static void t9_perf(void) {
   tu = micros(); for (uint16_t i = 0; i < N; i++) sink += dsp::mul(i, (uint16_t)(i + 1)); bench("mul.uDSC", micros() - tu, N);
   tu = micros(); for (uint16_t i = 0; i < N; i++) sink += (0x7FFFFFFFul - i) / (uint16_t)(i + 1); bench("div.SW", micros() - tu, N);
   tu = micros(); for (uint16_t i = 0; i < N; i++) sink += divmod(0x7FFFFFFFul - i, (uint16_t)(i + 1)).quotient; bench("div.uDSC", micros() - tu, N);
-  static int16_t da[16], db[16];
-  for (uint8_t i = 0; i < 16; i++) { da[i] = (int16_t)(i * 1000 - 8000); db[i] = (int16_t)(300 - i * 7); }
+  static int16_t da[256], db[256];
+  for (uint16_t i = 0; i < 256; i++) { da[i] = (int16_t)(i * 1000 - 8000); db[i] = (int16_t)(300 - i * 7); }
   tu = micros(); for (uint16_t i = 0; i < M; i++) sink += (uint32_t)swDot(da, db, 16); bench("dot16.SW", micros() - tu, M);
   tu = micros(); for (uint16_t i = 0; i < M; i++) sink += (uint32_t)dotProduct(da, db, 16); bench("dot16.uDSC", micros() - tu, M);
   tu = micros(); for (uint16_t i = 0; i < M; i++) sink += (uint32_t)dotProductFast(da, db, 16); bench("dot16.uDSC-SRAM", micros() - tu, M);
+  const uint16_t M64 = 800, M256 = 300;
+  tu = micros(); for (uint16_t i = 0; i < M64; i++) sink += (uint32_t)dotProduct(da, db, 64); bench("dot64.uDSC", micros() - tu, M64);
+  tu = micros(); for (uint16_t i = 0; i < M64; i++) sink += (uint32_t)dotProductFast(da, db, 64); bench("dot64.SRAM", micros() - tu, M64);
+  tu = micros(); for (uint16_t i = 0; i < M256; i++) sink += (uint32_t)dotProduct(da, db, 256); bench("dot256.uDSC", micros() - tu, M256);
+  tu = micros(); for (uint16_t i = 0; i < M256; i++) sink += (uint32_t)dotProductFast(da, db, 256); bench("dot256.SRAM", micros() - tu, M256);
+  static int16_t cx[16], chh[8]; static int32_t cOut[23];
+  for (uint8_t i = 0; i < 16; i++) cx[i] = (int16_t)(i * 13 - 99);
+  for (uint8_t i = 0; i < 8; i++)  chh[i] = (int16_t)(100 - i * 11);
+  const uint16_t MC = 400;
+  tu = micros(); for (uint16_t i = 0; i < MC; i++) { Dsp.convolve(cx, 16, chh, 8, cOut); sink += (uint32_t)cOut[11]; } bench("conv23.SW", micros() - tu, MC);
   analogReadResolution(12);
   tu = micros(); for (uint16_t i = 0; i < K; i++) sink += (uint32_t)analogRead(A0); bench("adc.read", micros() - tu, K);
   tu = micros(); for (uint16_t i = 0; i < K; i++) sink += (uint32_t)analogReadFast(A0); bench("adc.readFast", micros() - tu, K);

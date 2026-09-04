@@ -75,6 +75,13 @@ typedef uint16_t rx_buffer_index_t;
 typedef uint8_t rx_buffer_index_t;
 #endif
 
+// Ring-buffer indices widen to 16-bit above 256 bytes, but incrementing a
+// 16-bit index from main() while the ISR reads it is NOT atomic (Arduino#2405).
+// The >256 path would "often work" and occasionally glitch, so refuse it.
+#if (SERIAL_TX_BUFFER_SIZE > 256) || (SERIAL_RX_BUFFER_SIZE > 256)
+#error "Serial ring buffers >256 bytes need atomic index guards (not implemented, Arduino#2405). Keep buffers <=256."
+#endif
+
 // Define config for Serial.begin(baud, config);
 #define SERIAL_5N1 0x00
 #define SERIAL_6N1 0x02
