@@ -200,6 +200,47 @@ size_t Print::println(const Printable& x)
 
 // Private Methods /////////////////////////////////////////////////////////////
 
+// uDSC-accelerated 32/16 division for number formatting.
+//
+// LGT8F328P carries a uDSC co-processor whose DIVMOD op (IR 0xB1) computes a
+// full 32/16 division in ~158 cycles vs several hundred for the libgcc
+// software routine used by n/base below (this die has no DIV/MUL instruction).
+// Every decimal/hex/octal digit printed by printNumber used to cost two
+// software long divisions; routing them through the uDSC makes Serial/FILE
+// number output roughly 5-10x cheaper in CPU cycles.
+//
+// This block is a byte-for-byte mirror of the silicon-verified 32/16 divmod
+// in LGT8Unlocked/src/lgt/udsc.h (DOC-021 register-pair access, DOC-025
+// signed-divider quirk + fallback). Keep the two in sync. Guarded on DSCR so
+// the uDSC-less LGT8F328D/E/88A variants compile the plain path unchanged.
+#if defined(DSCR)
+namespace {
+// DOC-018: keep the DSU transaction atomic w.r.t. interrupts - an IRQ that
+// lands between DSUEN set and clear could corrupt AVR control flow. The
+// library divmod relies on the short window; the core print path additionally
+// masks IRQs for the ~20-cycle transaction because print() runs everywhere.
+static inline void print_fastDivMod(uint32_t d, uint16_t v, uint32_t *q, uint16_t *r) {
+  if (v == 0u) { *q = 0ul; *r = 0u; return; }              // never happens (base>=2)
+  if (d >= 0x80000000ul) { *q = d / v; *r = (uint16_t)(d % v); return; } // DOC-025 fallback
+  uint8_t s = SREG; cli();
+  DSCR |= _BV(DSUEN);                                       // enable
+  { uint16_t lo = (uint16_t)d, hi = (uint16_t)(d >> 16);    // setAccumulator
+    __asm__ __volatile__("nop" "\n\t" "out %0,%A1"::"I"(_SFR_IO_ADDR(DSAL)),"w"(lo):"memory");
+    __asm__ __volatile__("nop" "\n\t" "out %0,%A1"::"I"(_SFR_IO_ADDR(DSAH)),"w"(hi):"memory"); }
+  __asm__ __volatile__("nop" "\n\t" "out %0,%A1"::"I"(_SFR_IO_ADDR(DSDY)),"w"(v):"memory"); // setY
+  DSIR = 0xB1u;                                             // OP_DIVMOD
+  while (!(DSCR & _BV(DSD1))) {}                            // waitDivision
+  { uint16_t lw, hw;                                        // accumulator()
+    __asm__ __volatile__("in %A0,%1":"=w"(lw):"I"(_SFR_IO_ADDR(DSAL)):"memory");
+    __asm__ __volatile__("in %A0,%1":"=w"(hw):"I"(_SFR_IO_ADDR(DSAH)):"memory");
+    *q = (uint32_t)lw | ((uint32_t)hw << 16); }
+  __asm__ __volatile__("in %A0,%1":"=w"(*r):"I"(_SFR_IO_ADDR(DSDY)):"memory"); // remainder
+  DSCR &= (uint8_t)~_BV(DSUEN);                             // disable
+  SREG = s;
+}
+}
+#endif
+
 size_t Print::printNumber(unsigned long n, uint8_t base)
 {
   char buf[8 * sizeof(long) + 1]; // Assumes 8-bit chars plus zero byte.
@@ -210,12 +251,22 @@ size_t Print::printNumber(unsigned long n, uint8_t base)
   // prevent crash if called with base == 1
   if (base < 2) base = 10;
 
+#if defined(DSCR)
+  do {
+    uint32_t nq; uint16_t nr;
+    print_fastDivMod(n, (uint16_t)base, &nq, &nr);          // uDSC 32/16 DIVMOD
+    char c = (char)nr;
+    n = nq;
+    *--str = c < 10 ? c + '0' : c + 'A' - 10;
+  } while (n);
+#else
   do {
     char c = n % base;
     n /= base;
 
     *--str = c < 10 ? c + '0' : c + 'A' - 10;
   } while(n);
+#endif
 
   return write(str);
 }
