@@ -3,7 +3,7 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 CXX=${CXX:-g++}
 FLAGS="-std=gnu++11 -Wall -Wextra -Werror -fsyntax-only -DLGT8_UNLOCKED_ALLOW_HIGH_DRIVE=1"
-INCLUDES="-I$ROOT/tests/host_syntax -I$ROOT/cores/lgt8f -I$ROOT/libraries/LGT8Unlocked/src"
+INCLUDES="-I$ROOT/tests/host_syntax -I$ROOT/cores/lgt8f -I$ROOT/libraries/LGT8Unlocked/src -I$ROOT/libraries/E2PROM -I$ROOT/libraries/WDT -I$ROOT/libraries/SPI/src"
 
 # Aggregate header/API syntax gate.
 $CXX $FLAGS $INCLUDES "$ROOT/tests/host_syntax/test.cpp"
