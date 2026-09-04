@@ -57,7 +57,12 @@ public:
     if (clockSource == WTOH_32MHZ) {
       // enable 32MHz RC for WDT
       btmp = PMCR | (1 << RCMEN);  // 0000 0001 (enable RCMEN)
-      btmp = btmp & ~(1 << WCLKS); // 1110 1111 (select HFRC)
+#ifdef WCLKS
+      btmp = btmp & ~(1 << WCLKS); // 1110 1111 (select HFRC) - 328P only
+#else
+      // 328D/E: WDT clock source is fixed (no PMCR.WCLKS select); PMCR
+      // RCMEN/RCKEN lines below still apply where the bits exist.
+#endif
       uint8_t sreg=SREG; cli();
       PMCR = (1 << PMCE);          // 1000 0000
       PMCR = btmp;
@@ -65,7 +70,9 @@ public:
     } else {
       // enable 32KHz RC for WDT
       btmp = PMCR | (1 << RCKEN); // 0000 0010 (enable RCKEN)
-      btmp = btmp | (1 << WCLKS); // 0001 0000 (select LFRC)
+#ifdef WCLKS
+      btmp = btmp | (1 << WCLKS); // 0001 0000 (select LFRC) - 328P only
+#endif
       uint8_t sreg=SREG; cli();
       PMCR = (1 << PMCE);         // 1000 0000
       PMCR = btmp;
