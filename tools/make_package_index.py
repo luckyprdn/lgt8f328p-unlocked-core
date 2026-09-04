@@ -13,8 +13,9 @@ A flat archive (boards.txt at zip root) is rejected ("no unique root dir"),
 and a manual-install zip that nests lgt8funlocked/avr/... installs but
 hides the board from the IDE menu.
 
-The index URL to share with users is
-  https://cdn.jsdelivr.net/gh/luckyprdn/lgt8f328p-unlocked-core@main/package_lgt8funlocked_index.json
+The index URL to share with users is (GitHub Pages - fresh after every push;
+  https://luckyprdn.github.io/lgt8f328p-unlocked-core/package_lgt8funlocked_index.json
+  Remember to keep docs/package_lgt8funlocked_index.json in sync (Pages serves /docs).
 """
 import argparse
 import hashlib
