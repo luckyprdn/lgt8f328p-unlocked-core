@@ -156,20 +156,15 @@ struct DSP16 {
     int16_t _r = sat16((int32_t)accumulator()); disable(); return DSP16(_r);
   }
   friend DSP16 operator/(DSP16 a, DSP16 b) {
+    // DOC-027: int16/int16 in int32 is faster than routing through the
+    // 32/16 uDSC divmod, and handles INT16_MIN/-1 (32768 -> sat16 32767)
+    // without UB. Saturating contract matches +,-,*.
     if (b.v == 0) return DSP16(0);
-    bool neg = (a.v < 0) != (b.v < 0);
-    uint32_t ua = (uint32_t)(a.v < 0 ? (int32_t)-(int32_t)a.v : (int32_t)a.v);
-    uint16_t ub = (uint16_t)(b.v < 0 ? (int32_t)-(int32_t)b.v : (int32_t)b.v);
-    DivResult r = divmod(ua, ub);
-    return DSP16(neg ? -(int16_t)r.quotient : (int16_t)r.quotient);
+    return DSP16(sat16((int32_t)a.v / (int32_t)b.v));
   }
   friend DSP16 operator%(DSP16 a, DSP16 b) {
     if (b.v == 0) return DSP16(0);
-    bool neg = a.v < 0;
-    uint32_t ua = (uint32_t)(a.v < 0 ? (int32_t)-(int32_t)a.v : (int32_t)a.v);
-    uint16_t ub = (uint16_t)(b.v < 0 ? (int32_t)-(int32_t)b.v : (int32_t)b.v);
-    DivResult r = divmod(ua, ub);
-    return DSP16(neg ? -(int16_t)r.remainder : (int16_t)r.remainder);
+    return DSP16(sat16((int32_t)a.v % (int32_t)b.v));   // C sign-of-dividend
   }
   DSP16 &operator+=(DSP16 o) { *this = *this + o; return *this; }
   DSP16 &operator-=(DSP16 o) { *this = *this - o; return *this; }
@@ -224,16 +219,18 @@ static inline int32_t dotProductFast(const int16_t *a,const int16_t *b,uint16_t 
 static inline int32_t firFast(const int16_t *ring,const int16_t *h,uint16_t n){(void)ring;(void)h;(void)n;return 0;}
 
 // DSP16 — portable fallback on 328D/E (native AVR arithmetic).
+// Saturating contract identical to the 328P uDSC DSP16 (DOC-027).
+static inline int16_t sat16(int32_t v){if(v>32767)return 32767;if(v<-32768)return -32768;return (int16_t)v;}
 struct DSP16 {
   int16_t v;
   DSP16(int x = 0) : v((int16_t)x) {}
   operator int16_t() const { return v; }
   operator int32_t() const { return (int32_t)v; }
-  friend DSP16 operator+(DSP16 a, DSP16 b) { return DSP16((int16_t)((int32_t)a.v + (int32_t)b.v)); }
-  friend DSP16 operator-(DSP16 a, DSP16 b) { return DSP16((int16_t)((int32_t)a.v - (int32_t)b.v)); }
-  friend DSP16 operator*(DSP16 a, DSP16 b) { return DSP16((int16_t)((int32_t)a.v * (int32_t)b.v)); }
-  friend DSP16 operator/(DSP16 a, DSP16 b) { if (b.v == 0) return DSP16(0); return DSP16((int16_t)((int32_t)a.v / (int32_t)b.v)); }
-  friend DSP16 operator%(DSP16 a, DSP16 b) { if (b.v == 0) return DSP16(0); return DSP16((int16_t)((int32_t)a.v % (int32_t)b.v)); }
+  friend DSP16 operator+(DSP16 a, DSP16 b) { return DSP16(sat16((int32_t)a.v + (int32_t)b.v)); }
+  friend DSP16 operator-(DSP16 a, DSP16 b) { return DSP16(sat16((int32_t)a.v - (int32_t)b.v)); }
+  friend DSP16 operator*(DSP16 a, DSP16 b) { return DSP16(sat16((int32_t)a.v * (int32_t)b.v)); }
+  friend DSP16 operator/(DSP16 a, DSP16 b) { if (b.v == 0) return DSP16(0); return DSP16(sat16((int32_t)a.v / (int32_t)b.v)); }
+  friend DSP16 operator%(DSP16 a, DSP16 b) { if (b.v == 0) return DSP16(0); return DSP16(sat16((int32_t)a.v % (int32_t)b.v)); }
   DSP16 &operator+=(DSP16 o) { *this = *this + o; return *this; }
   DSP16 &operator-=(DSP16 o) { *this = *this - o; return *this; }
   DSP16 &operator*=(DSP16 o) { *this = *this * o; return *this; }
