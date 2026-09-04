@@ -49,7 +49,14 @@ static inline uint32_t subtractY(uint16_t y,bool s=false){enable();setY(y);comma
 struct DivResult{uint32_t quotient;uint16_t remainder;bool zero;};
 static inline uint8_t mulOpcode(bool xS,bool yS,bool neg=false,bool half=false){uint8_t o=0x40u;if(xS)o|=0x20u;if(yS)o|=0x10u;if(half)o|=0x08u;if(!neg)o|=0x04u;return o;}
 static inline uint8_t macOpcode(bool xS,bool yS,bool sub=false,bool half=false,bool sA=false){uint8_t o=0x40u;if(xS)o|=0x20u;if(yS)o|=0x10u;if(half)o|=0x08u;if(!sub)o|=0x04u;o|=0x02u;if(sA)o|=0x01u;return o;}
-static inline uint32_t mul(uint16_t x,uint16_t y,bool xS=false,bool yS=false){enable();setX(x);setY(y);command(mulOpcode(xS,yS));uint32_t r=accumulator();disable();return r;}
+static inline uint32_t mul(uint16_t x,uint16_t y,bool xS=false,bool yS=false){
+  // DOC-029 (perf 2026-09-04): byte fast-path. When BOTH operands are < 0x100
+  // the 16-bit value is in [0,255] regardless of the sign flags (int16 of an
+  // x<0x100 is non-negative), so the product is plain x*y and native 8x8 mul
+  // beats the whole uDSC transaction (~6 vs ~63 cycles). Byte-identical to
+  // the uDSC result by construction.
+  if (((x | y) & 0xFF00u) == 0) return (uint32_t)((uint16_t)(uint8_t)x * (uint16_t)(uint8_t)y);
+  enable();setX(x);setY(y);command(mulOpcode(xS,yS));uint32_t r=accumulator();disable();return r;}
 static inline uint32_t mulHalf(uint16_t x,uint16_t y,bool xS=false,bool yS=false){enable();setX(x);setY(y);command(mulOpcode(xS,yS,false,true));uint32_t r=accumulator();disable();return r;}
 // DOC-026 (silicon-audited 2026-09-04): the IR "neg" bit encoding used by
 // mulNegative/mulNegativeHalf returns 0 on real silicon (wrong opcode class);
