@@ -12,7 +12,7 @@ Arduino-compatible core untuk **LGT8F328P** dan **LGT8F328D/E** — MCU LQFP32/Q
 | HDR high-drive GPIO | ✅ 6 pin | 🚫 Stub |
 | OPA0/OPA1 op-amp | 🚫 | ✅ **NEW** |
 | DAC0 + DAC1 | ✅ | ✅ **DAC1 baru** |
-| LGT8Unlocked library | ✅ 32 contoh | ✅ 32 contoh |
+| LGT8Unlocked library | ✅ 39 contoh | ✅ 37 contoh |
 
 ## Board Support
 
@@ -66,10 +66,22 @@ Lengkap: 15 objek — `AdcExt`, `Dsp`, `Dac`, `HdDrive`, `Pwm`, `Timer`, `Comp`,
 
 Recovery-safe mode aktif secara default. Operasi berbahaya (Flash IAP, clock switch, EEPROM resize, LVD config) akan return `Locked` tanpa programmer. Aman untuk upload via bootloader USB.
 
+## Silicon Verification (LQFP48, 2026-09-04)
+
+Seluruh klaim silicon di bawah ini **verified di hardware asli** (LGT8F328P-LQFP48, test 2026-09-04) — bukan asumsi datasheet. Temuan tiap fitur dicatat di `docs/datasheet-errata.md` (DOC-001..027).
+
+Sketch verifikasi (compile 328P, variant LQFP32 atau LQFP48):
+
+- `File → Examples → LGT8Unlocked → silicon_verify` — 6 test inti uDSC + WDT
+- `File → Examples → LGT8Unlocked → final_sweep` — satu-run penuh: byte-accurate (mul/divmod/DSP16/dot), EEPROM 1020B, WDT reset-real, benchmark cycles/op, stress 20k
+- `File → Examples → LGT8Unlocked → danger_probe` — verifikasi fitur yang di-flag unsafe/unreliable di silicon ini
+
+Rangkuman errata silicon LQFP48: WDT interrupt mode **tidak ada** (reset-mode saja); EEPROM native 32-bit write **rusak** (byte-engine); DSSD **unstable**; DSP16/extended-op di-SW-compose di atas jalur accumulator 32-bit yang proven (register-pair + nop, DOC-021).
+
 ## Dokumentasi
 
 - `docs/api-reference.md` — 15 modul API lengkap
-- `docs/datasheet-errata.md` — 17 entri perbedaan datasheet vs implementasi
+- `docs/datasheet-errata.md` — 27 entri perbedaan datasheet vs implementasi (DOC-001..027, silicon-verified)
 
 ## License
 
