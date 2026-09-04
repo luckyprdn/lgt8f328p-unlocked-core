@@ -12,7 +12,7 @@ Arduino-compatible core untuk **LGT8F328P** dan **LGT8F328D/E** — MCU LQFP32/Q
 | HDR high-drive GPIO | ✅ 6 pin | 🚫 Stub |
 | OPA0/OPA1 op-amp | 🚫 | ✅ **NEW** |
 | DAC0 + DAC1 | ✅ | ✅ **DAC1 baru** |
-| LGT8Unlocked library | ✅ 39 contoh | ✅ 37 contoh |
+| LGT8Unlocked library | ✅ 33 contoh | ✅ 31 contoh |
 
 ## Board Support
 
