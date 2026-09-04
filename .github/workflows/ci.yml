@@ -10,7 +10,7 @@ jobs:
     name: Compile (examples x variants)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: arduino/setup-arduino-cli@v2
 
       - name: Install AVR toolchain (avr-gcc, avrdude)
@@ -50,7 +50,7 @@ jobs:
     name: Host syntax + static tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Host C++ syntax / register runtime (ASan+UBSan)
         run: tests/host_syntax/run.sh
