@@ -43,7 +43,7 @@ Restart Arduino IDE → Tools → Board → **LGT8F328**.
 
 ## LGT8Unlocked Library
 
-32 contoh siap pakai: `File → Examples → LGT8Unlocked`.
+Mulai dari **`FeatureTour`** (panduan semua modul, gaya Adafruit), lalu 38 contoh lain: `File → Examples → LGT8Unlocked`.
 
 ### High-Level API (Arduino-style)
 
