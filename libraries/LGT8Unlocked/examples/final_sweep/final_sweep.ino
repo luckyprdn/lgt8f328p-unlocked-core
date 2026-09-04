@@ -80,8 +80,8 @@ static void t3_dsp16(void) {
     if ((int16_t)(a - b) != sat16r((int32_t)v[i] - v[j])) { R("T3.sub", false); return; }
     if ((int16_t)(a * b) != sat16r((int32_t)v[i] * v[j])) { R("T3.mul", false); return; }
     if (v[j] != 0) {
-      if ((int16_t)(a / b) != (int16_t)((int32_t)v[i] / v[j])) { R("T3.div", false); return; }
-      if ((int16_t)(a % b) != (int16_t)((int32_t)v[i] % v[j])) { R("T3.mod", false); return; }
+      if ((int16_t)(a / b) != sat16r((int32_t)v[i] / v[j])) { R("T3.div", false); return; }
+      if ((int16_t)(a % b) != sat16r((int32_t)v[i] % v[j])) { R("T3.mod", false); return; }
     } else if ((int16_t)(a / b) != 0) { R("T3.div0", false); return; }
   }
   R("T3.DSP16 81 combos", true);

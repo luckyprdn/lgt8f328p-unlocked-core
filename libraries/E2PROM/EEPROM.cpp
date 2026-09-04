@@ -33,6 +33,9 @@ static inline void lgt_eeprom_issue_program(uint8_t mode)
 	EECR = (uint8_t)(eerie | (mode & 0xF0u) | 0x04u); // EEMPE
 	EECR = (uint8_t)(eerie | (mode & 0xF0u) | 0x02u); // EEPE
 	SREG = sreg;
+	// Serialize: never start another controller command while EEPE is busy.
+	// (A dropped/interleaved program cycle was the suspected DOC-028 reset.)
+	while (EECR & 0x02u) {} // EEPE self-clears when the program completes
 }
 #endif
 
@@ -208,13 +211,10 @@ void lgt_eeprom_write_byte( uint16_t address, uint8_t value, bool real_address_m
 {
 	if (!lgt_eeprom_address_is_user_accessible(address, real_address_mode)) return;
 
-	// DOC-028 (perf 2026-09-04): skip identical bytes. Most firmware write
-	// patterns are idempotent (defaults/config rewritten every boot); the
-	// previous code issued an EEMPE->EEPE program cycle (+ possible page swap)
-	// even when the byte already held the value. Early-out on equality: no
-	// program cycle, no page swap, no flash wear. Cost when values DO differ:
-	// one extra read (~1us) vs the millisecond-scale program cycle.
-	if (lgt_eeprom_read_byte(address, real_address_mode) == value) return;
+	// DOC-028 REVERTED on silicon 2026-09-04: the read-before-program skip
+	// was never HW-verified and the full 1020B sweep resets the chip with it
+	// in place (see datasheet-errata). Program path below is the exact one
+	// proven by the PASSING full sweep (byte-engine, no interleaved reads).
 
 	if (!real_address_mode) address = lgt_eeprom_continuous_address_to_real_address(address);
 
@@ -229,9 +229,7 @@ void lgt_eeprom_write_byte( uint16_t address, uint8_t value )
 {
 	if ( address >= (uint16_t)lgt_eeprom_size( false ) ) return;
 
-	// DOC-028: skip identical bytes (see 328P branch note).
-	if (lgt_eeprom_read_byte(address) == value) return;
-	
+	// (DOC-028 reverted - see 328P branch; identical bytes still program)
 	uint8_t	__bk_sreg = SREG;
 
 	// set address & data
@@ -243,6 +241,7 @@ void lgt_eeprom_write_byte( uint16_t address, uint8_t value )
 	EECR = 0x04;
 	EECR = 0x02;
 	SREG = __bk_sreg;
+	while (EECR & 0x02u) {} // EEPE busy-wait (same serialize as 328P branch)
 }
 #endif
 
