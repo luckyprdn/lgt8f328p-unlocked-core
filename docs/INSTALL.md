@@ -8,7 +8,7 @@ Three ways to install, from the most convenient to the most manual.
    Manager URLs* → add:
 
    ```
-   https://raw.githubusercontent.com/luckyprdn/lgt8f328p-unlocked-core/main/package_lgt8funlocked_index.json
+   https://cdn.jsdelivr.net/gh/luckyprdn/lgt8f328p-unlocked-core@main/package_lgt8funlocked_index.json
    ```
 
 2. **Tools → Board → Boards Manager**, search `LGT8F328`, install
@@ -21,7 +21,7 @@ CLI:
 
 ```bash
 arduino-cli core update-index \
-  --additional-urls https://raw.githubusercontent.com/luckyprdn/lgt8f328p-unlocked-core/main/package_lgt8funlocked_index.json
+  --additional-urls https://cdn.jsdelivr.net/gh/luckyprdn/lgt8f328p-unlocked-core@main/package_lgt8funlocked_index.json
 arduino-cli core install lgt8funlocked:avr
 arduino-cli core list   # lgt8funlocked:avr 1.0.3
 ```
