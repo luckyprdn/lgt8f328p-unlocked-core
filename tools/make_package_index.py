@@ -5,8 +5,16 @@ Usage: make_package_index.py <release-zip> <release-tag> [--version X.Y.Z]
 Reads boards.txt / platform.txt in the repo root. Writes the index to stdout
 (ASCII-escaped, as required by the Arduino index validator).
 
+Boards-manager archive layout (required by arduino-cli/IDE): the zip must
+contain exactly ONE root folder (convention: "avr") with boards.txt and
+platform.txt directly inside it at depth 1, e.g. avr/boards.txt. The
+installer re-homes that root folder's contents into the version directory.
+A flat archive (boards.txt at zip root) is rejected ("no unique root dir"),
+and a manual-install zip that nests lgt8funlocked/avr/... installs but
+hides the board from the IDE menu.
+
 The index URL to share with users is
-  https://raw.githubusercontent.com/luckyprdn/lgt8f328p-unlocked-core/main/package_lgt8funlocked_index.json
+  https://cdn.jsdelivr.net/gh/luckyprdn/lgt8f328p-unlocked-core@main/package_lgt8funlocked_index.json
 """
 import argparse
 import hashlib
