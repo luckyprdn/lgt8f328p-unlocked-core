@@ -116,6 +116,22 @@ uploads through the bootloader can never touch those regions.
 - `libraries/LGT8Unlocked/docs/api-reference.md` — full API reference
 - Each example is self-documenting (connect/watch/silicon notes in the header)
 
+## Acknowledgments
+
+- **[dbuezas/lgt8fx](https://github.com/dbuezas/lgt8fx)** — this core is
+  forked from and API-compatible with `lgt8fx`; the E2PROM library, variants
+  and register maps build on that work.
+- **[LGTMCU/Larduino_HSP](https://github.com/LGTMCU/Larduino_HSP)** — board
+  definition base.
+- **Optiboot** (bootloaders), **V-USB by Objective Development** (software
+  USB libraries), and the **Arduino AVR core** (cores, Wire, SPI, String,
+  tone, ...).
+
+Full component-by-component attribution and licenses:
+`THIRD_PARTY_NOTICES.md`.
+
 ## License
 
-GNU Lesser General Public License v2.1
+Core and library: GNU Lesser General Public License v2.1 (see `LICENSE`).
+Third-party components carry their own licenses (see `THIRD_PARTY_NOTICES.md`
+and the headers of the individual source files).
