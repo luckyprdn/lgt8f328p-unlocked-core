@@ -67,7 +67,20 @@ static inline bool validSram16(const void *p){uintptr_t a=(uintptr_t)p;return a>
 static inline uintptr_t alias16Address(const void *p){return (uintptr_t)p+0x2000u;}
 static inline uint16_t load16(const uint16_t *p){if(!validSram16(p))return 0;enable();mappingIO(false);const void *z=(const void*)alias16Address(p);__asm__ __volatile__("ld r0,Z"::"z"(z):"r0","memory");uint16_t r=getX();disable();return r;}
 static inline Status store16(uint16_t *p,uint16_t v){if(!validSram16(p))return OutOfRange;enable();mappingIO(false);setX(v);void *z=(void*)alias16Address(p);__asm__ __volatile__("st Z,r0"::"z"(z):"r0","memory");disable();return Ok;}
-static inline DivResult divmod(uint32_t d,uint16_t v){enable();setAccumulator(d);setY(v);command(OP_DIVMOD);waitDivision();DivResult r={accumulator(),getY(),divideByZero()};disable();return r;}
+static inline DivResult divmod(uint32_t d,uint16_t v){
+  // DOC-025 (silicon-verified 2026-09-04): the uDSC DIVMOD is a SIGNED
+  // 32-bit division (dividend treated as int32; 0xFFFFFFFF as unsigned
+  // dividend gives q=0 r=1 = |INT32_MIN-1| path). Byte-exact unsigned
+  // semantics for the full uint32 range require a software fallback for
+  // dividends >= 0x80000000 (rare; correctness first). Dividends below
+  // that are positive-as-signed, where the uDSC path is exact.
+  if (d >= 0x80000000ul) {
+    DivResult r;
+    if (v == 0u) { r.zero = true; r.quotient = 0ul; r.remainder = 0u; return r; }
+    r.zero = false; r.quotient = d / v; r.remainder = (uint16_t)(d % v); return r;
+  }
+  enable();setAccumulator(d);setY(v);command(OP_DIVMOD);waitDivision();DivResult r={accumulator(),getY(),divideByZero()};disable();return r;
+}
 static inline int32_t dotProduct(const int16_t *a,const int16_t *b,uint16_t c){
   if(c==0){return 0;}
   if(!a||!b){return 0;}
@@ -122,17 +135,14 @@ struct DSP16 {
   operator int32_t() const { return (int32_t)v; }
 
   friend DSP16 operator+(DSP16 a, DSP16 b) {
-    // MAC path is silicon-proven (dotProduct exact); DSSD is not (DOC-022).
-    // DA = a*1 + 1*b  (0x77 signed MAC, proven opcode).
-    enable(); command(OP_CLEAR);
-    setX((uint16_t)a.v); setY(1); command(macOpcode(true, true, false, false, true));
-    setX(1); setY((uint16_t)b.v); command(macOpcode(true, true, false, false, true));
+    // OP_ADD_S = DA = X+Y overwrite (S8 silicon-verified). MAC chains are
+    // avoided: a 2nd MAC whose product is negative double-adds on this die
+    // (sub-probe 2026-09-04) - dotProduct is unaffected (verified exact).
+    enable(); setX((uint16_t)a.v); setY((uint16_t)b.v); command(OP_ADD_S);
     int16_t _r = sat16((int32_t)accumulator()); disable(); return DSP16(_r);
   }
   friend DSP16 operator-(DSP16 a, DSP16 b) {
-    enable(); command(OP_CLEAR);
-    setX((uint16_t)a.v); setY(1); command(macOpcode(true, true, false, false, true));   // DA = a
-    setX((uint16_t)-1); setY((uint16_t)b.v); command(macOpcode(true, true, false, false, true)); // DA += -b
+    enable(); setX((uint16_t)a.v); setY((uint16_t)b.v); command(OP_SUB_S);
     int16_t _r = sat16((int32_t)accumulator()); disable(); return DSP16(_r);
   }
   friend DSP16 operator*(DSP16 a, DSP16 b) {
@@ -162,11 +172,11 @@ struct DSP16 {
   DSP16 &operator/=(DSP16 o) { *this = *this / o; return *this; }
   DSP16 &operator%=(DSP16 o) { *this = *this % o; return *this; }
   DSP16 &mac(DSP16 a, DSP16 b) {
-    // DA = v + a*b via proven 0x77 MAC chain (DOC-022: no DSSD).
-    enable(); command(OP_CLEAR);
-    setX((uint16_t)v); setY(1); command(macOpcode(true, true, false, false, true));
-    setX((uint16_t)a.v); setY((uint16_t)b.v); command(macOpcode(true, true, false, false, true));
-    v = sat16((int32_t)accumulator()); disable(); return *this;
+    // DOC-025: single uDSC signed mul (overwrite, proven) + SW accumulate.
+    // Avoids the negative-product MAC-chain double-add die quirk.
+    int32_t p = (int32_t)mul((uint16_t)a.v, (uint16_t)b.v, true, true);
+    v = sat16((int32_t)v + p);
+    return *this;
   }
 };
 // Mixed-operand overloads so DSP16 * 2 and 2 * DSP16 both compile.
