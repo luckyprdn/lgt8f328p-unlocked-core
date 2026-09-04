@@ -53,10 +53,13 @@ def test_eeprom_mapping_and_native_words() -> None:
     require("bytes <= (uint32_t)(size - address)" in valid, "native word range must be overflow-safe")
     swm = section(cpp, "void lgt_eeprom_writeSWM", "void lgt_eeprom_readSWM")
     require("if (length == 0 || pData == 0) return;" in swm, "SWM write must reject zero/null")
-    require("wordReal = (uint16_t)(real + (uint16_t)(i * 4u))" in swm,
-            "SWM write must explicitly advance EEAR instead of assuming auto-increment")
-    require("wordsHere = (pageBytes - inPage) / 4u" in swm,
-            "SWM must chunk on emulation-page boundaries")
+    # DOC-024: writeSWM uses the byte engine, so every byte is addressed
+    # explicitly per call (no controller auto-increment is relied on) and the
+    # engine's logical->physical mapping keeps writes out of reserved cells.
+    require("lgt_eeprom_write_byte((uint16_t)(base+b)," in swm.replace(" ", ""),
+            "SWM write must address every byte explicitly (no auto-increment)")
+    require("for (uint8_t b = 0; b < 4u; ++b)" in swm,
+            "SWM must decompose each word into 4 byte writes")
     # With the deliberately exposed 1020 bytes/page, all native word chunks are
     # word aligned and never touch physical offsets 1020..1023.
     for logical in range(0, 4 * 1020, 4):
@@ -170,7 +173,7 @@ def test_udsc_opcode_builders() -> None:
             "uDSC multiply opcode reference invariant failed")
     require(mac(False, False) == 0x46 and mac(True, True, True, True, True) == 0x7B,
             "uDSC MAC opcode reference invariant failed")
-    require("if(a==0||b==0)return0;" in u.replace(" ", ""), "uDSC dotProduct null guard missing")
+    require("if(!a||!b){return0;}" in u.replace(" ", ""), "uDSC dotProduct null guard missing")
     require("0x2100u" in u or "+0x2000u" in u, "uDSC SRAM alias helper missing")
 
 
