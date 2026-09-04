@@ -1,48 +1,51 @@
-// Example_SPI_Dual_Throughput — ukur SPI DUAL receive throughput.
-//
-// LGT8F328P only (SPFR FIFO + DUAL bit).  Wire MISO (PB4) and MOSI (PB3)
-// together to see the loopback: DUAL mode reads both simultaneously.
-// D/E silicon: prints Unsupported.
+/*
+ * Example_SPI_Dual_Throughput — SPI dual speed test
+ * --------------------------------------------------
+ *   Connect : MISO (PB4) to MOSI (PB3) for loopback.
+ *   Watch   : Serial Monitor @115200 - tick counts per path.
+ *   Silicon : 328P only. Timer1/64 is started here for timing.
+ */
 #include <SPI.h>
 #include <LGT8Unlocked.h>
 
 void setup() {
   Serial.begin(115200);
+  while (!Serial) {}
   delay(200);
+  Serial.println(F("=== SPI dual throughput (Timer1 ticks @/64) ==="));
 
   SPI.begin();
   SPI.beginTransaction(SPISettings(8000000, MSBFIRST, SPI_MODE0));
+  TCCR1B = (1 << CS11) | (1 << CS10);
 
   lgt::Status st = lgt::SPIDual::begin();
   if (st != lgt::Ok) {
-    Serial.println(F("SPI dual unavailable on this silicon"));
+    Serial.println(F("  SPI dual unavailable on this silicon."));
     return;
   }
 
   uint8_t buf[32];
-  uint32_t t0, t1;
+  uint16_t t0, t1;
 
-  // single-channel receive baseline (SPDR per byte)
   cli(); t0 = TCNT1; sei();
   for (uint8_t i = 0; i < 32; ++i) { SPI.transfer(0); }
   cli(); t1 = TCNT1; sei();
-  Serial.print(F("single: ")); Serial.println((uint32_t)(t1 - t0));
+  Serial.print(F("  single, 32 bytes = ")); Serial.println((uint16_t)(t1 - t0));
 
-  // dual receive: 2 bytes per SPDR write
   cli(); t0 = TCNT1; sei();
   for (uint8_t i = 0; i < 16; ++i) { lgt::SPIDual::receive2(); }
   cli(); t1 = TCNT1; sei();
-  Serial.print(F("dual2:  ")); Serial.println((uint32_t)(t1 - t0));
+  Serial.print(F("  dual,   16x2      = ")); Serial.println((uint16_t)(t1 - t0));
 
-  // dual bulk receive
   cli(); t0 = TCNT1; sei();
   lgt::SPIDual::receive(buf, sizeof(buf));
   cli(); t1 = TCNT1; sei();
-  Serial.print(F("dual32: ")); Serial.println((uint32_t)(t1 - t0));
+  Serial.print(F("  dual,   32 bulk   = ")); Serial.println((uint16_t)(t1 - t0));
 
   lgt::SPIDual::end();
+  TCCR1B = 0;
   SPI.endTransaction();
-  Serial.println(F("done"));
+  Serial.println(F("=== done. Fewer ticks = faster. ==="));
 }
 
 void loop() { delay(1000); }

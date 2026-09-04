@@ -1,28 +1,59 @@
-// Example_ADC — analog-to-digital high-level API (lgt::AdcExt)
-// Koneksi: A0 = potensiometer / sensor analog.
+/*
+ * Example_ADC — 12-bit ADC: averaging, window monitor, PGA gain
+ * --------------------------------------------------------------
+ *   Connect : A0 -> potentiometer / analog sensor (optional).
+ *             Floating A0 is detected and reported, not trusted.
+ *   Watch   : Serial Monitor @115200.
+ *   Silicon : 328P = 12-bit ADC, PGA x1/x8/x16/x32 + offset cal.
+ *             328D = ADC without PGA (status prints Unsupported).
+ */
 #include <LGT8Unlocked.h>
 
 void setup() {
   Serial.begin(115200);
+  while (!Serial) {}
+  delay(200);
+  Serial.println(F("=== ADC demo (12-bit) ==="));
 
-  // 1) Rata-rata 16 sample — mengurangi noise
-  uint16_t avg = AdcExt.readAverage(A0, 16);
-  Serial.print("avg="); Serial.println(avg);
+  analogReadResolution(12);
 
-  // 2) Window monitor: true jika ADC di [100..200]
-  bool inWindow = AdcExt.monitor(A0, 100, 200);
-  Serial.print("window="); Serial.println(inWindow ? 1 : 0);
+  // 1) Single + averaged readings
+  Serial.println(F("[1] reading A0 ..."));
+  uint16_t one  = analogRead(A0);
+  uint16_t avg  = AdcExt.readAverage(A0, 16);
+  Serial.print(F("    single      = ")); Serial.println(one);
+  Serial.print(F("    avg of 16   = ")); Serial.println(avg);
+  int16_t spread = one > avg ? one - avg : avg - one;
+  if (spread > 60)
+    Serial.println(F("    -> A0 looks FLOATING: tie it to GND or VCC, then reset."));
+  else
+    Serial.println(F("    -> stable source (0..4095 = 0..VCC)."));
 
-  // 3) PGA gain x16 (hanya 328P; 328D → Unsupported)
+  // 2) Window monitor: true while the reading stays in [low..high]
+  Serial.println(F("[2] window monitor  [100..200] ..."));
+  Serial.print(F("    in-window = "));
+  Serial.println(AdcExt.monitor(A0, 100, 200) ? F("yes") : F("no"));
+
+  // 3) PGA gain x16 then back to x1 (328P only)
+  Serial.println(F("[3] PGA gain x16 -> x1 ..."));
   lgt::Status s = AdcExt.setGain(lgt::Gain16);
-  Serial.print("gain_status="); Serial.println((int)s);
+  if (s == lgt::Ok) {
+    Serial.println(F("    PGA x16 ok (amplifies small analog signals)."));
+    AdcExt.setGain(lgt::Gain1);
+    Serial.println(F("    restored to x1."));
+  } else if (s == lgt::Unsupported) {
+    Serial.println(F("    PGA not available on 328D - skipped."));
+  } else {
+    Serial.println(F("    PGA locked by recovery-safe gate."));
+  }
 
-  // 4) Kalibrasi offset (hanya 328P; 328D → Unsupported)
-  s = AdcExt.calibrate();
-  Serial.print("cal_status="); Serial.println((int)s);
+  // 4) Offset calibration (328P only)
+  Serial.println(F("[4] ADC offset calibration ..."));
+  s = AdcExt.calibrate(8);
+  Serial.print(F("    calibration "));
+  Serial.println(s == lgt::Ok ? F("ok") : s == lgt::Unsupported ? F("n/a on 328D") : F("failed/locked"));
 
-  // Kembalikan PGA ke x1 supaya analogRead normal
-  AdcExt.setGain(lgt::Gain1);
+  Serial.println(F("=== done. Re-run with a wired A0 for real readings. ==="));
 }
 
 void loop() {}

@@ -1,25 +1,43 @@
-// Example_System — chip info & reset cause (lgt::Sys)
+/*
+ * Example_System — chip ID, reset cause, safety info
+ * ----------------------------------------------------
+ *   Connect : nothing.
+ *   Watch   : Serial Monitor @115200.
+ *   Silicon : prints the per-chip GUID, why the chip last reset, the
+ *             recovery-safe program limit and whether SWD is locked.
+ */
 #include <LGT8Unlocked.h>
+
+static const char *resetName(uint8_t bits) {
+  // bit0=power,1=external,2=WDT,3=soft/jtag,4=BrownOut(LVD) per LGT core
+  switch (bits) {
+    case 0x01: return "power-on";
+    case 0x02: return "external pin";
+    case 0x04: return "watchdog";
+    case 0x08: return "software / debugger";
+    case 0x10: return "brown-out (LVD)";
+    default:   return "multiple or unknown";
+  }
+}
 
 void setup() {
   Serial.begin(115200);
+  while (!Serial) {}
+  delay(200);
+  Serial.println(F("=== System info ==="));
 
-  // 32-bit chip ID / GUID
-  uint32_t id = Sys.chipId();
-  Serial.print("chipid=0x"); Serial.println(id, HEX);
-
-  // Reset cause (bit flags: POR/WDR/BOR/EXRFD/SWR)
-  uint8_t rc = Sys.lastResetCause();
-  Serial.print("reset_cause=0x"); Serial.println(rc, HEX);
-
-  // Batas program (alamat maksimum sketch)
-  uint16_t limit = Sys.programLimit();
-  Serial.print("program_limit=0x"); Serial.println(limit, HEX);
-
-  // SWD disable state
-  Serial.print("swd_disabled="); Serial.println(Sys.swdDisabled() ? 1 : 0);
+  Serial.print(F("  chip id     : 0x")); Serial.println(Sys.chipId(), HEX);
+  Serial.print(F("  reset cause : 0x")); Serial.print(Sys.lastResetCause(), HEX);
+  Serial.print(F("  (")); Serial.print(resetName(Sys.lastResetCause()));
+  Serial.println(F(")"));
+  Serial.print(F("  program lim.: ")); Serial.print(Sys.programLimit());
+  Serial.println(F(" bytes (sketches above this are refused)"));
+  Serial.print(F("  SWD debugger: "));
+  Serial.println(Sys.swdDisabled() ? F("disabled (locked)") : F("enabled"));
 
   Sys.clearResetCause();
+  Serial.println(F("  reset cause cleared - next boot reports the new cause."));
+  Serial.println(F("=== done. ==="));
 }
 
 void loop() {}

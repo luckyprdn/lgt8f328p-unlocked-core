@@ -1,28 +1,42 @@
-// Example_PWM — PWM frekuensi + dead-time (lgt::Pwm)
-// Timer1: pin 9 (PB1/OC1A) — semua silicon.
-// Timer3: D33/D34/D35 (PF1/PF2/PF3) — hanya QFP48 328P.
+/*
+ * Example_PWM — PWM frequency control + Timer3 + dead-time
+ * ----------------------------------------------------------
+ *   Connect : LED + 220R on pin 9 (OC1A). QFP48: pin 33/PF1 for Timer3.
+ *   Watch   : Serial Monitor @115200; brightness/frequency on the LED.
+ *   Silicon : Timer1 = any chip. Timer3 = 328P QFP48 only.
+ *             Dead-time (anti shoot-through) = 328P only.
+ */
 #include <LGT8Unlocked.h>
 
 void setup() {
   Serial.begin(115200);
+  while (!Serial) {}
+  delay(200);
+  Serial.println(F("=== PWM demo ==="));
 
-  // Timer1 PWM 1 kHz di pin 9
+  Serial.println(F("[1] Timer1 PWM, 1 kHz, 50% on pin 9 ..."));
   uint8_t cs = Pwm.timer1Frequency(1000);
-  analogWrite(9, 128);                 // 50% duty
-  Serial.print("timer1_prescaler="); Serial.println(cs);
+  analogWrite(9, 128);
+  Serial.print(F("    prescaler code = ")); Serial.println(cs);
+  Serial.println(F("    (see it on pin 9 with an LED or scope)"));
 
-  // Timer3 PWM 25 kHz di D33 (PF1/OC3A) — QFP48 328P only
+  Serial.println(F("[2] Timer3 PWM, 25 kHz (328P QFP48) ..."));
   lgt::Status s = Pwm.timer3Frequency(25000);
-  Serial.print("timer3_status="); Serial.println((int)s);
   if (s == lgt::Ok) {
-    pinMode(33, OUTPUT);
+    pinMode(33, OUTPUT);                    // PF1 / OC3A
     lgt::Timer3::output(lgt::Timer3::A, true, false);
-    lgt::Timer3::duty(lgt::Timer3::A, 512);      // 25kHz, ~50%
+    lgt::Timer3::duty(lgt::Timer3::A, 512); // ~50%
+    Serial.println(F("    25 kHz on pin 33."));
+  } else {
+    Serial.println(F("    Timer3 n/a on this chip/package."));
   }
 
-  // Dead-time 5 tick antara OC3A/OC3B (anti shoot-through, P only)
+  Serial.println(F("[3] dead-time 5 ticks (328P only) ..."));
   s = Pwm.deadTime3(5, 5);
-  Serial.print("deadtime3_status="); Serial.println((int)s);
+  Serial.println(s == lgt::Ok ? F("    dead-time armed between OC3A/OC3B.")
+                              : F("    n/a here."));
+
+  Serial.println(F("=== done. ==="));
 }
 
 void loop() {}

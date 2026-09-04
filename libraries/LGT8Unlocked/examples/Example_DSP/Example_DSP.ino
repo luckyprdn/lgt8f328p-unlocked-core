@@ -1,31 +1,45 @@
-// Example_DSP — aritmatika cepat via uDSC (lgt::Dsp)
-// Di 328P otomatis pakai koprosesor uDSC; di 328D pakai AVR native.
+/*
+ * Example_DSP — 16-bit DSP math, Arduino style
+ * ----------------------------------------------
+ *   Connect : nothing.
+ *   Watch   : Serial Monitor @115200.
+ *   Silicon : 328P runs every op on the uDSC coprocessor; 328D uses the
+ *             same API with native AVR math. DSP16 is SATURATING:
+ *             30000*2 does NOT wrap - it clamps to 32767 (DOC-025/027).
+ */
 #include <LGT8Unlocked.h>
 
 void setup() {
   Serial.begin(115200);
+  while (!Serial) {}
+  delay(200);
+  Serial.println(F("=== DSP demo (16-bit, saturating) ==="));
 
-  // Operasi dasar (saturating di 328P)
-  int16_t m = Dsp.multiply(30000, 2);   // 60000 → saturate 32767
-  int16_t d = Dsp.divide(60000, 7);     // 8571
-  int16_t r = Dsp.modulo(60000, 7);     // 8571*7=59997 → sisa 3
-  Serial.print("mul="); Serial.println(m);
-  Serial.print("div="); Serial.println(d);
-  Serial.print("mod="); Serial.println(r);
+  Serial.println(F("[1] multiply / divide / modulo"));
+  int16_t m = Dsp.multiply(30000, 2);   // would be 60000 -> saturates
+  int16_t d = Dsp.divide(60000, 7);
+  int16_t r = Dsp.modulo(60000, 7);
+  Serial.print(F("    30000 * 2   = ")); Serial.println(m);
+  Serial.println(F("    (32767 = clamped, not a bug - 16-bit saturating)"));
+  Serial.print(F("    60000 / 7   = ")); Serial.println(d);
+  Serial.print(F("    60000 % 7   = ")); Serial.println(r);
+  Serial.print(F("    -32768 / -1 = ")); Serial.println(Dsp.divide(-32768, -1));
+  Serial.println(F("    (32767 again - INT16_MIN edge saturates, DOC-027)"));
 
-  // map() versi DSP
-  int32_t mp = Dsp.map(512, 0, 1023, -100, 100);   // ≈ 0
-  Serial.print("map="); Serial.println(mp);
+  Serial.println(F("[2] map() 512/1023 -> -100..100"));
+  Serial.print(F("    map = ")); Serial.println(Dsp.map(512, 0, 1023, -100, 100));
 
-  // FIR filter / dot product
+  Serial.println(F("[3] dot product + FIR filter"));
+  int16_t a[4] = {100, -200, 300, -400};
+  int16_t b[4] = {2, 3, -4, 5};
+  Serial.print(F("    dot     = ")); Serial.println(Dsp.dot(a, b, 4));
+  Serial.println(F("    (expect -3600: 200-600-1200-2000)"));
   int16_t x[4] = {10, 20, 30, 40};
   int16_t h[4] = {1, 1, 1, 1};
-  int16_t fir = Dsp.fir(x, h, 4);       // 10+20+30+40 = 100
-  Serial.print("fir="); Serial.println(fir);
+  Serial.print(F("    fir(avg)= ")); Serial.println(Dsp.fir(x, h, 4));
+  Serial.print(F("    average = ")); Serial.println(Dsp.average(x, 4));
 
-  // Rata-rata array
-  int16_t avg = Dsp.average(x, 4);      // (10+20+30+40)/4 = 25
-  Serial.print("avg="); Serial.println(avg);
+  Serial.println(F("=== done. ==="));
 }
 
 void loop() {}

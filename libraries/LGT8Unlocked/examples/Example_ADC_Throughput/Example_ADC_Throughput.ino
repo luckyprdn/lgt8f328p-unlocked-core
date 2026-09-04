@@ -1,56 +1,52 @@
-// Example_ADC_Throughput — ukur sample rate analogRead vs analogReadFast
-// vs high-speed mode (SPD bit), 12-bit resolution.
-//
-// P only meaningful; D compiles (fast path = same as normal read there).
-// Prints KSPS per path so hardware validation can compare against the
-// datasheet 3MHz ADC clock claim.
+/*
+ * Example_ADC_Throughput — how fast can we sample?
+ * -------------------------------------------------
+ *   Connect : A0 -> GND or VCC (any stable level).
+ *   Watch   : Serial Monitor @115200. Numbers are kilo-samples/sec.
+ *   Silicon : 328P has a 12-bit ADC plus a high-speed (SPD) clock bit;
+ *             328D runs the same code without the SPD advantage.
+ *
+ * Timer1 is clocked at /64 for the measurement (it is NOT running by
+ * default - the old version of this example forgot to start it!).
+ */
 #include <LGT8Unlocked.h>
 
 #define N 64
 
+static uint32_t measureTicks(void (*sample)(void)) {
+  TCCR1B = (1 << CS11) | (1 << CS10);      // Timer1 = F_CPU/64 (2 us/tick)
+  cli(); uint16_t t0 = TCNT1; sei();
+  sample();
+  cli(); uint16_t t1 = TCNT1; sei();
+  TCCR1B = 0;                              // stop Timer1 again
+  return (uint32_t)(uint16_t)(t1 - t0) * 64u;   // in CPU cycles
+}
+
+static void readNormal()   { for (uint8_t i = 0; i < N; ++i) { volatile uint16_t v = analogRead(A0); (void)v; } }
+static void readFast()     { for (uint8_t i = 0; i < N; ++i) { volatile uint16_t v = analogReadFast(A0); (void)v; } }
+static void readHighFast() { lgt::ADCAdvanced::highSpeed(true); for (uint8_t i = 0; i < N; ++i) { volatile uint16_t v = analogReadFast(A0); (void)v; } lgt::ADCAdvanced::highSpeed(false); }
+static void read8bit()     { ADMUX |= _BV(ADLAR); for (uint8_t i = 0; i < N; ++i) { volatile uint16_t v = analogReadFast(A0); (void)v; } ADMUX &= (uint8_t)~_BV(ADLAR); }
+
+static void report(const char *name, uint32_t cyc) {
+  Serial.print(F("  ")); Serial.print(name);
+  Serial.print(F(" : "));
+  Serial.print(1000.0f * (float)N * 32.0f / (float)cyc, 1);
+  Serial.println(F(" kS/s"));
+}
+
 void setup() {
   Serial.begin(115200);
+  while (!Serial) {}
   delay(200);
+  Serial.println(F("=== ADC throughput (kilo-samples/second) ==="));
+  analogReadResolution(12);
 
-  uint16_t buf[N];
-  (void)buf;  // kept for future buffer-based burst timing
-  uint32_t t0, t1;
+  report("analogRead (Arduino)",     measureTicks(readNormal));
+  report("analogReadFast",           measureTicks(readFast));
+  report("highSpeed + Fast (328P)",  measureTicks(readHighFast));
+  report("8-bit left-just + Fast",   measureTicks(read8bit));
 
-  Serial.println(F("--- ADC throughput (KSPS) ---"));
-
-  // analogRead (10-bit path, Arduino default)
-  cli(); t0 = TCNT1; sei();
-  for (uint8_t i = 0; i < N; ++i) { volatile uint16_t v = analogRead(A0); (void)v; }
-  cli(); t1 = TCNT1; sei();
-  Serial.print(F("analogRead:      "));
-  Serial.println(1000.0f * (float)N * 32.0f / (float)(t1 - t0), 1);
-
-  // analogReadFast (single conversion, 12-bit)
-  cli(); t0 = TCNT1; sei();
-  for (uint8_t i = 0; i < N; ++i) { volatile uint16_t v = analogReadFast(A0); (void)v; }
-  cli(); t1 = TCNT1; sei();
-  Serial.print(F("analogReadFast:  "));
-  Serial.println(1000.0f * (float)N * 32.0f / (float)(t1 - t0), 1);
-
-  // high-speed mode (SPD) — datasheet claims faster conversion clock
-  lgt::ADCAdvanced::highSpeed(true);
-  cli(); t0 = TCNT1; sei();
-  for (uint8_t i = 0; i < N; ++i) { volatile uint16_t v = analogReadFast(A0); (void)v; }
-  cli(); t1 = TCNT1; sei();
-  lgt::ADCAdvanced::highSpeed(false);
-  Serial.print(F("highSpeed+Fast:  "));
-  Serial.println(1000.0f * (float)N * 32.0f / (float)(t1 - t0), 1);
-
-  // 8-bit left-justified fast path (ADLAR) for max throughput
-  ADMUX |= _BV(ADLAR);
-  cli(); t0 = TCNT1; sei();
-  for (uint8_t i = 0; i < N; ++i) { volatile uint16_t v = analogReadFast(A0); (void)v; }
-  cli(); t1 = TCNT1; sei();
-  ADMUX &= (uint8_t)~_BV(ADLAR);
-  Serial.print(F("8-bit Fast:      "));
-  Serial.println(1000.0f * (float)N * 32.0f / (float)(t1 - t0), 1);
-
-  Serial.println(F("(cycle estimate: 32MHz / ticks, 1 tick = 1 timer1 count)"));
+  Serial.println(F("=== done (higher = faster). ==="));
 }
 
 void loop() { delay(1000); }
