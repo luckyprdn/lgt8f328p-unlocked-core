@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  compile:
+    name: Compile (examples x variants)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+
+      - name: Install AVR toolchain (avr-gcc, avrdude)
+        run: |
+          arduino-cli config init
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr@1.8.6
+
+      - name: Install this core as a local platform
+        run: |
+          mkdir -p "$HOME/Arduino/hardware/lgt8funlocked"
+          rsync -a --exclude '.git' "$GITHUB_WORKSPACE/" "$HOME/Arduino/hardware/lgt8funlocked/avr/"
+          arduino-cli core list
+
+      - name: Compile every LGT8Unlocked example on 328P-LQFP48
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=0; fail=0
+          for d in libraries/LGT8Unlocked/examples/*/; do
+            if arduino-cli compile -b lgt8funlocked:avr:328:variant=modelP48 "$d" >/tmp/c.log 2>&1; then
+              ok=$((ok+1))
+            else
+              fail=$((fail+1)); echo "::error::compile failed: $d"; tail -20 /tmp/c.log
+            fi
+          done
+          echo "examples OK=$ok FAIL=$fail"
+          [ "$fail" -eq 0 ]
+
+      - name: Compile silicon_verify on 328P-LQFP32
+        run: arduino-cli compile -b lgt8funlocked:avr:328:variant=modelP libraries/LGT8Unlocked/examples/silicon_verify
+
+      - name: Compile smoke on 328D
+        run: arduino-cli compile -b lgt8funlocked:avr:328:variant=modelD libraries/LGT8Unlocked/examples/HardwareSmokeSafePro
+
+  host-tests:
+    name: Host syntax + static tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Host C++ syntax / register runtime (ASan+UBSan)
+        run: tests/host_syntax/run.sh
+
+      - name: Static regression tests
+        run: |
+          python3 tests/static/test_unlocked.py
+          python3 tests/static/test_recovery_safe.py
+          python3 tests/static/test_rc2_hardening.py
