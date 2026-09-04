@@ -5,9 +5,9 @@ LogicGreen AVR-based MCUs that are pin-compatible with the ATmega328P but add
 a 32 MHz clock, a 12-bit ADC, the uDSC 16-bit DSP coprocessor, and flash-emulated
 EEPROM.
 
-Every silicon-dependent claim in this repository is backed by measurements on
-real hardware (LGT8F328P-LQFP48, 2026-09-04) rather than datasheet assumptions.
-Findings are tracked as errata entries in `docs/datasheet-errata.md` (DOC-001..031).
+Silicon-dependent behavior in this repository is documented from measurements
+on LGT8F328P-LQFP48 hardware (2026-09-04); findings are tracked as errata
+entries in `docs/datasheet-errata.md` (DOC-001..031).
 
 ## Feature matrix
 
@@ -67,9 +67,9 @@ void setup() {
 }
 ```
 
-Start with **`FeatureTour`** — a guided walkthrough of every module — then the
+Start with **`FeatureTour`** for a per-module overview, then the
 per-module `Example_*` sketches, the advanced examples (PGA, Timer3PWM, uDSC,
-SPI dual, ...), and the silicon verification kit:
+SPI dual, ...), and the hardware verification examples:
 
 - `silicon_verify` — the 6 core silicon gates
 - `final_sweep` — full byte-accurate sweep: arithmetic matrices, EEPROM 1020B,
@@ -97,7 +97,7 @@ errata document:
 
 | Operation | SW | uDSC | Notes |
 |-----------|----|----|-------|
-| div 32/16 | 648 | 158 | 4.1x - the headline win |
+| div 32/16 | 648 | 158 | 4.1x |
 | dot16 | 722 | 310 | 2.3x for dot/FIR workloads |
 | mul 16x16 | 77 | 102 | use SW for standalone multiplies |
 | ADC read | 773 | 417 | `analogReadFast` 1.85x |

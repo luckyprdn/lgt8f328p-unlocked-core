@@ -32,7 +32,7 @@ void setup() {
   while (!Serial) {}
   delay(300);
   Serial.println(F("=================================================="));
-  Serial.println(F("  LGT8F328P Feature Tour  (silicon-verified core)"));
+  Serial.println(F("  LGT8F328P Feature Tour"));
   Serial.println(F("=================================================="));
 
   // ---- 1. System: who am I? -------------------------------------

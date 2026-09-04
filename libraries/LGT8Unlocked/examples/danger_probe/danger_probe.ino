@@ -144,7 +144,7 @@ void setup() {
   Serial.begin(115200);
   while (!Serial) {}
   delay(200);
-  Serial.println(F("=== DANGER-ZONE DEBUG ==="));
+  Serial.println(F("=== UNRELIABLE-FEATURE PROBE ==="));
   dbg1(); dbg2(); dbg3(); dbg4(); dbg5(); dbg6(); dbg7(); dbg8(); dbg9(); dbg10();
   Serial.print(F("=== pass=")); Serial.print(g_pass);
   Serial.print(F(" fail=")); Serial.print(g_fail);
