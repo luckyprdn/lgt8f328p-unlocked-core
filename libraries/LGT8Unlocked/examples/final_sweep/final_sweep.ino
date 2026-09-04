@@ -47,22 +47,26 @@ volatile uint16_t g_bootMagic __attribute__((section(".noinit")));
 #define BMAGIC 0xB007
 
 static void t1_mul(void) {
-  const int16_t v[] = {1, 2, 3, 127, 128, 255, 256, 1000, 30000, -1, -2, -128, -1000, -30000, -32768, 32767};
+  static const int16_t v[16] PROGMEM = {1, 2, 3, 127, 128, 255, 256, 1000, 30000, -1, -2, -128, -1000, -30000, -32768, 32767};
+  int16_t lv[16];
+  memcpy_P(lv, v, sizeof(v));          // keep .bss lean; const stays in flash
   for (uint8_t i = 0; i < 16; i++) for (uint8_t j = 0; j < 16; j++) {
-    uint16_t x = (uint16_t)v[i], y = (uint16_t)v[j];
+    uint16_t x = (uint16_t)lv[i], y = (uint16_t)lv[j];
     if (dsp::mul(x, y) != (uint32_t)x * y) { R("T1.mulU", false); return; }
-    if ((int32_t)dsp::mul(x, y, true, true) != (int32_t)v[i] * (int32_t)v[j]) { R("T1.mulS", false); return; }
+    if ((int32_t)dsp::mul(x, y, true, true) != (int32_t)lv[i] * (int32_t)lv[j]) { R("T1.mulS", false); return; }
   }
   R("T1.mul 256 pairs", true);
 }
 static void t2_div(void) {
-  const uint32_t dv[] = {0x7FFFFFFFul, 0x80000000ul, 0xFFFFFFFFul, 65535ul, 65536ul, 1000ul, 7ul, 2ul, 1ul, 0ul};
-  const uint16_t ds[] = {1000, 2, 1, 65535, 0x8000, 7, 3, 0};
+  static const uint32_t dv[10] PROGMEM = {0x7FFFFFFFul, 0x80000000ul, 0xFFFFFFFFul, 65535ul, 65536ul, 1000ul, 7ul, 2ul, 1ul, 0ul};
+  static const uint16_t ds[8] PROGMEM = {1000, 2, 1, 65535, 0x8000, 7, 3, 0};
+  uint32_t lv[10]; uint16_t ls[8];
+  memcpy_P(lv, dv, sizeof(dv)); memcpy_P(ls, ds, sizeof(ds));
   for (uint8_t i = 0; i < 10; i++) for (uint8_t j = 0; j < 8; j++) {
-    DivResult r = divmod(dv[i], ds[j]);
-    bool z = (ds[j] == 0);
-    if (r.zero != z || (!z && (r.quotient != dv[i] / ds[j] || r.remainder != (uint16_t)(dv[i] % ds[j])))) {
-      snprintf(buf, sizeof(buf), "%lu/%u", (unsigned long)dv[i], ds[j]);
+    DivResult r = divmod(lv[i], ls[j]);
+    bool z = (ls[j] == 0);
+    if (r.zero != z || (!z && (r.quotient != lv[i] / ls[j] || r.remainder != (uint16_t)(lv[i] % ls[j])))) {
+      snprintf(buf, sizeof(buf), "%lu/%u", (unsigned long)lv[i], ls[j]);
       R("T2.divmod", false, buf); return;
     }
   }
@@ -162,20 +166,20 @@ static void t9_perf(void) {
   tu = micros(); for (uint16_t i = 0; i < N; i++) sink += dsp::mul(i, (uint16_t)(i + 1)); bench("mul.uDSC", micros() - tu, N);
   tu = micros(); for (uint16_t i = 0; i < N; i++) sink += (0x7FFFFFFFul - i) / (uint16_t)(i + 1); bench("div.SW", micros() - tu, N);
   tu = micros(); for (uint16_t i = 0; i < N; i++) sink += divmod(0x7FFFFFFFul - i, (uint16_t)(i + 1)).quotient; bench("div.uDSC", micros() - tu, N);
-  static int16_t da[256], db[256];
-  for (uint16_t i = 0; i < 256; i++) { da[i] = (int16_t)(i * 1000 - 8000); db[i] = (int16_t)(300 - i * 7); }
+  int16_t da[128], db[128];
+  for (uint16_t i = 0; i < 128; i++) { da[i] = (int16_t)(i * 1000 - 8000); db[i] = (int16_t)(300 - i * 7); }
   tu = micros(); for (uint16_t i = 0; i < M; i++) sink += (uint32_t)swDot(da, db, 16); bench("dot16.SW", micros() - tu, M);
   tu = micros(); for (uint16_t i = 0; i < M; i++) sink += (uint32_t)dotProduct(da, db, 16); bench("dot16.uDSC", micros() - tu, M);
   tu = micros(); for (uint16_t i = 0; i < M; i++) sink += (uint32_t)dotProductFast(da, db, 16); bench("dot16.uDSC-SRAM", micros() - tu, M);
-  const uint16_t M64 = 800, M256 = 300;
+  const uint16_t M64 = 800, M128 = 400;
   tu = micros(); for (uint16_t i = 0; i < M64; i++) sink += (uint32_t)dotProduct(da, db, 64); bench("dot64.uDSC", micros() - tu, M64);
   tu = micros(); for (uint16_t i = 0; i < M64; i++) sink += (uint32_t)dotProductFast(da, db, 64); bench("dot64.SRAM", micros() - tu, M64);
-  tu = micros(); for (uint16_t i = 0; i < M256; i++) sink += (uint32_t)dotProduct(da, db, 256); bench("dot256.uDSC", micros() - tu, M256);
-  tu = micros(); for (uint16_t i = 0; i < M256; i++) sink += (uint32_t)dotProductFast(da, db, 256); bench("dot256.SRAM", micros() - tu, M256);
-  static int16_t cx[16], chh[8]; static int32_t cOut[23];
+  tu = micros(); for (uint16_t i = 0; i < M128; i++) sink += (uint32_t)dotProduct(da, db, 128); bench("dot128.uDSC", micros() - tu, M128);
+  tu = micros(); for (uint16_t i = 0; i < M128; i++) sink += (uint32_t)dotProductFast(da, db, 128); bench("dot128.SRAM", micros() - tu, M128);
+  int16_t cx[16], chh[8]; int32_t cOut[23];
   for (uint8_t i = 0; i < 16; i++) cx[i] = (int16_t)(i * 13 - 99);
   for (uint8_t i = 0; i < 8; i++)  chh[i] = (int16_t)(100 - i * 11);
-  const uint16_t MC = 400;
+  const uint16_t MC = 300;
   tu = micros(); for (uint16_t i = 0; i < MC; i++) { Dsp.convolve(cx, 16, chh, 8, cOut); sink += (uint32_t)cOut[11]; } bench("conv23.SW", micros() - tu, MC);
   analogReadResolution(12);
   tu = micros(); for (uint16_t i = 0; i < K; i++) sink += (uint32_t)analogRead(A0); bench("adc.read", micros() - tu, K);
@@ -248,6 +252,25 @@ static void t14_wdt_reset(void) {
   R("T14.reset", false, "chip did NOT reset in 2s");
 }
 
+static void t15_rtc(void) {
+  lgt::Status st = Rtc.begin();
+  if (st != lgt::Ok) { R("T15.Rtc", false, "begin failed"); return; }
+  Rtc.set(0);
+  delay(2500);
+  uint32_t s = Rtc.seconds();
+  Rtc.end();
+  char b[26];
+  snprintf(b, sizeof(b), "t=2.5s rtc=%lus", (unsigned long)s);
+  R("T15.Rtc-1Hz", s >= 2 && s <= 4, b);
+}
+static void t16_peripheral(void) {
+  lgt::Status off = Pwr.peripheral(lgt::Power::PeripheralTWI, false);
+  bool bitSet = (PRR & _BV(7)) != 0;
+  Pwr.peripheral(lgt::Power::PeripheralTWI, true);
+  bool bitCleared = (PRR & _BV(7)) == 0;
+  R("T16.PRR-domain", off == lgt::Ok && bitSet && bitCleared, "TWI off->on roundtrip");
+}
+
 void setup() {
   Serial.begin(115200);
   while (!Serial) {}
@@ -264,6 +287,7 @@ void setup() {
   Serial.println(F("=== FINAL SWEEP run1 ==="));
   t1_mul(); t2_div(); t3_dsp16(); t4_dot(); t5_eeprom(); t6_wdt_armfeed();
   t7_spi(); t8_persist(); t9_perf(); t10_stress(); t11_regs(); t12_adc(); t13_info();
+  t15_rtc(); t16_peripheral();
   Serial.print(F("=== pre-T14 pass=")); Serial.print(g_pass);
   Serial.print(F(" fail=")); Serial.print(g_fail);
   Serial.print(F(" skip=")); Serial.print(g_skip);
