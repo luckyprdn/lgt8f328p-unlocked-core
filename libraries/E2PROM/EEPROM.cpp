@@ -313,61 +313,39 @@ void lgt_eeprom_write_block( uint8_t *pbuf, uint16_t address, uint16_t len )
 	void lgt_eeprom_write32( uint16_t address, uint32_t value )
 	{
 		if (!lgt_eeprom_valid_word_range(address, 1)) return;
-		address = lgt_eeprom_continuous_address_to_real_address(address);
 
-		// Native 32-bit mode has dedicated data registers.  Do not overload
-		// EEARL as an EEDR byte selector here; keeping the data and address
-		// paths separate makes the alignment contract explicit.
-		E2PD0 = (uint8_t)value;
-		E2PD1 = (uint8_t)(value >> 8);
-		E2PD2 = (uint8_t)(value >> 16);
-		E2PD3 = (uint8_t)(value >> 24);
-
-		EEARH = (uint8_t)(address >> 8);
-		EEARL = (uint8_t)address;
-		lgt_eeprom_issue_program(0x40u);
+		// DOC-024 (silicon-verified 2026-09-04 on LQFP48): native 32-bit
+		// program mode (EECR width bit 0x40, E2PD0..3 staging) is BROKEN on
+		// this die - only a partial byte lands (write32(0,0xA5A5A5A5) left
+		// flash = A5 00 00 00; write32(64,0xDEADBEEF) left bytes 1-3
+		// unwritten). Byte-mode engine (lgt_eeprom_write_byte) is
+		// silicon-proven for single AND multi-byte writes across page swaps.
+		// Cost is irrelevant: every write is a flash page-swap anyway.
+		// Address stays LOGICAL (real_address_mode=false) so each byte write
+		// applies the continuous->real hole-skip mapping itself.
+		for (uint8_t i = 0; i < 4u; ++i) {
+			lgt_eeprom_write_byte((uint16_t)(address + i),
+				(uint8_t)(value >> (8u * i)), false);
+		}
 	}
 
 	// Write a logical continuous range while respecting the two controller
-	// metadata bytes at the end of each physical 1KB emulation page.  SWM is
-	// restarted at each page boundary so the hardware never streams through
-	// the reserved tail.
+	// metadata bytes at the end of each physical 1KB emulation page.  The
+	// byte-mode engine applies hole-skip per byte, so no page-boundary
+	// special-casing is needed.  (Hardware SWM streaming + native 32-bit
+	// program mode are broken on LQFP48 - DOC-024.)
 	void lgt_eeprom_writeSWM( uint16_t address, uint32_t *pData, uint16_t length )
 	{
 		if (length == 0 || pData == 0) return;
 		if (!lgt_eeprom_valid_word_range(address, length)) return;
 
-		const uint16_t pageBytes = lgt_eeprom_free_space_per_1KB_page();
-		uint16_t done = 0;
-		while (done < length) {
-			uint16_t logical = address + (uint16_t)(done * 4u);
-			uint16_t inPage = logical % pageBytes;
-			uint16_t wordsHere = (pageBytes - inPage) / 4u;
-			uint16_t remaining = length - done;
-			if (wordsHere > remaining) wordsHere = remaining;
-			uint16_t real = lgt_eeprom_continuous_address_to_real_address(logical);
-
-			lgt_eeprom_reset();
-			lgt_eeprom_SWM_ON();
-			for (uint16_t i = 0; i < wordsHere; ++i) {
-				// The databook documents each SWM programming operation with an
-				// explicit EEAR target; it does not promise EEAR auto-increment.
-				// Advance the physical address in software instead of depending on
-				// undocumented controller state.
-				uint16_t wordReal = (uint16_t)(real + (uint16_t)(i * 4u));
-				EEARH = (uint8_t)(wordReal >> 8);
-				EEARL = (uint8_t)wordReal;
-
-				uint32_t value = pData[done + i];
-				E2PD0 = (uint8_t)value;
-				E2PD1 = (uint8_t)(value >> 8);
-				E2PD2 = (uint8_t)(value >> 16);
-				E2PD3 = (uint8_t)(value >> 24);
-
-				if (i == (uint16_t)(wordsHere - 1u)) lgt_eeprom_SWM_OFF();
-				lgt_eeprom_issue_program(0x40u);
+		for (uint16_t i = 0; i < length; ++i) {
+			uint32_t value = pData[i];
+			uint16_t base = (uint16_t)(address + (uint16_t)(i * 4u));
+			for (uint8_t b = 0; b < 4u; ++b) {
+				lgt_eeprom_write_byte((uint16_t)(base + b),
+					(uint8_t)(value >> (8u * b)), false);
 			}
-			done += wordsHere;
 		}
 	}
 

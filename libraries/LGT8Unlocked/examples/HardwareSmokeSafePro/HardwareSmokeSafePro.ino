@@ -45,15 +45,16 @@ static void eeprom_native_tests(void) {
   bool beyond_ok = (lgt_eeprom_read32(E2END + 1) != 0xDEADBEEFUL); // must not have written
   check("eeprom OOB write refused", beyond_ok);
 
-  // --- SWM continuous mode, crossing the 1020 hole-skip boundary ---
-  // continuous addresses 1016..1032 map to real 1016..1019 (page0) + 1024..1028 (page1)
-  uint32_t buf[4] = {0x11111111UL, 0x22222222UL, 0x33333333UL, 0x44444444UL};
-  uint32_t rb[4] = {0, 0, 0, 0};
-  lgt_eeprom_writeSWM(1016, buf, 4);             // spans page boundary (hole-skip)
-  lgt_eeprom_readSWM(1016, rb, 4);
-  bool swm_ok = true;
-  for (int i = 0; i < 4; ++i) swm_ok = swm_ok && (rb[i] == buf[i]);
-  check("eeprom SWM hole-skip roundtrip", swm_ok);
+  // --- SWM continuous mode ---
+  // NOTE: with the recovery-safe 1KB partition the logical space (1020
+  // bytes) never crosses a physical page boundary, so hole-skip crossing
+  // only applies to >1KB configurations. Valid 1KB span: one word @1016.
+  uint32_t buf[1] = {0xDEADBEEFUL};
+  uint32_t rb[1] = {0};
+  lgt_eeprom_writeSWM(1016, buf, 1);
+  lgt_eeprom_readSWM(1016, rb, 1);
+  bool swm_ok = (rb[0] == buf[0]);
+  check("eeprom SWM roundtrip", swm_ok);
 
   // --- E2END must equal 1019 for the locked 1KB partition ---
   check("eeprom E2END==1019", (int)E2END == 1019);
