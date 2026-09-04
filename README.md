@@ -32,6 +32,24 @@ entries in `docs/datasheet-errata.md` (DOC-001..031).
 
 ## Installation
 
+**Boards Manager (recommended).** In the Arduino IDE open
+*File → Preferences → Additional Boards Manager URLs* and add:
+
+```
+https://raw.githubusercontent.com/luckyprdn/lgt8f328p-unlocked-core/main/package_lgt8funlocked_index.json
+```
+
+Then *Tools → Board → Boards Manager*, search **LGT8F328**, install
+**LGT8Fx Boards**. CLI equivalent:
+
+```bash
+arduino-cli core update-index \
+  --additional-urls https://raw.githubusercontent.com/luckyprdn/lgt8f328p-unlocked-core/main/package_lgt8funlocked_index.json
+arduino-cli core install lgt8funlocked:avr
+```
+
+**Manual.** Extract the release zip into your sketchbook hardware folder:
+
 ```
 Arduino/
   └── hardware/
