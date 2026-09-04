@@ -12,12 +12,12 @@
         {
           "name": "LGT8Fx Boards",
           "architecture": "avr",
-          "version": "1.0.3",
+          "version": "1.0.4",
           "category": "Contributed",
-          "url": "https://github.com/luckyprdn/lgt8f328p-unlocked-core/releases/download/v1.0.3/lgt8funlocked-avr-1.0.3.zip",
-          "archiveFileName": "lgt8funlocked-avr-1.0.3.zip",
-          "checksum": "SHA-256:708c6e198bf765f7a7d068f8246e7a059a6fee709c19d0440c01b98a70824752",
-          "size": "708820",
+          "url": "https://github.com/luckyprdn/lgt8f328p-unlocked-core/releases/download/v1.0.4/lgt8funlocked-avr-1.0.4.zip",
+          "archiveFileName": "lgt8funlocked-avr-1.0.4.zip",
+          "checksum": "SHA-256:166b7b48e5c8b57f3df3b152c7ce4abc90789b49f629b681f5783199106c34f3",
+          "size": "711123",
           "boards": [
             {
               "name": "LGT8F328"
